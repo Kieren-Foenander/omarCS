@@ -327,21 +327,25 @@ Panel {
                 {
                   label: "K–D",
                   value: root.stats.kills + "–" + root.stats.deaths,
+                  title: "Kills–Deaths",
                   tooltip: "Kills–deaths for this match.\nMore kills than deaths is generally better."
                 },
                 {
                   label: "ADR",
                   value: root.formatNumber(root.stats.adr, 1),
+                  title: "Average Damage per Round",
                   tooltip: "Average damage dealt per round.\nHigher is better."
                 },
                 {
                   label: "KAST",
                   value: root.formatNumber(root.stats.kast, 0) + "%",
+                  title: "Kill, Assist, Survive, or Trade",
                   tooltip: "Rounds with a kill, assist, survival, or traded death.\nHigher is better."
                 },
                 {
                   label: "RATING",
                   value: root.formatNumber(root.stats.rating, 2),
+                  title: "Rating",
                   tooltip: "Overall performance estimate from kills, deaths,\nassists, impact, KAST, and ADR. Around 1.00 is average."
                 }
               ] : []
@@ -383,7 +387,7 @@ Panel {
 
                 PanelToolTip {
                   visible: metricHover !== null && metricHover.containsMouse
-                  text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                  text: modelData !== null && modelData !== undefined ? modelData.title + "\n" + modelData.tooltip : ""
                   fontFamily: root.fontFamily
                 }
               }
@@ -401,22 +405,26 @@ Panel {
 
               Repeater {
                 model: root.stats ? [
-                  {
-                    value: "HS " + root.formatNumber(root.stats.headshotPercent, 0) + "%",
-                    tooltip: "Percentage of your kills that were headshots.\nHigher is generally better."
-                  },
-                  {
-                    value: "OPENINGS " + root.stats.openingKills + "–" + root.stats.openingDeaths,
-                    tooltip: "Opening kills–opening deaths.\nThese are the first kills and deaths of each round."
-                  },
-                  {
-                    value: "TRADES " + root.stats.tradeKills,
-                    tooltip: "Kills that traded a teammate shortly after their death.\nHigher usually indicates effective spacing."
-                  },
-                  {
-                    value: "UTIL " + root.stats.utilityDamage,
-                    tooltip: "Enemy damage dealt with HE grenades and fire.\nHigher means more damaging utility value."
-                  }
+                {
+                  value: "HS " + root.formatNumber(root.stats.headshotPercent, 0) + "%",
+                  title: "Headshot Percentage",
+                  tooltip: "Percentage of your kills that were headshots.\nHigher is generally better."
+                },
+                {
+                  value: "OPENINGS " + root.stats.openingKills + "–" + root.stats.openingDeaths,
+                  title: "Opening Kills–Opening Deaths",
+                  tooltip: "Opening kills–opening deaths.\nThese are the first kills and deaths of each round."
+                },
+                {
+                  value: "TRADES " + root.stats.tradeKills,
+                  title: "Trade Kills",
+                  tooltip: "Kills that traded a teammate shortly after their death.\nHigher usually indicates effective spacing."
+                },
+                {
+                  value: "UTIL " + root.stats.utilityDamage,
+                  title: "Utility Damage",
+                  tooltip: "Enemy damage dealt with HE grenades and fire.\nHigher means more damaging utility value."
+                }
                 ] : []
 
                 Item {
@@ -442,7 +450,7 @@ Panel {
 
                   PanelToolTip {
                     visible: matchDetailHover !== null && matchDetailHover.containsMouse
-                    text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                    text: modelData !== null && modelData !== undefined ? modelData.title + "\n" + modelData.tooltip : ""
                     fontFamily: root.fontFamily
                   }
                 }
@@ -468,21 +476,25 @@ Panel {
                 {
                   label: "XHAIR",
                   value: root.formatNumber(root.stats.crosshairPlacement, 1) + "°",
+                  title: "Crosshair Placement",
                   tooltip: "Median aim movement from first visibility to first damage.\nLower is better; 0° means already on target.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
                 },
                 {
                   label: "TTD",
                   value: root.formatNumber(root.stats.timeToDamageMs, 0) + "ms",
+                  title: "Time to Damage",
                   tooltip: "Median time from first visibility to first damage.\nLower is generally better; duels over one second are excluded.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
                 },
                 {
                   label: "SPOT ACC",
                   value: root.formatNumber(root.stats.spottedAccuracy, 0) + "%",
+                  title: "Spotted Accuracy",
                   tooltip: "Shots that hit ÷ shots fired while an enemy was visible.\nHigher is better. Based on " + root.stats.spottedShots + " shots."
                 },
                 {
                   label: "COUNTER",
                   value: root.formatNumber(root.stats.counterStrafePercent, 0) + "%",
+                  title: "Counter-Strafe",
                   tooltip: "Uncrouched rifle shots fired below 34% max movement speed.\nHigher is better. Based on " + root.stats.counterStrafeShots + " shots."
                 }
               ] : []
@@ -524,7 +536,7 @@ Panel {
 
                 PanelToolTip {
                   visible: mechanicsHover !== null && mechanicsHover.containsMouse
-                  text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                  text: modelData !== null && modelData !== undefined ? modelData.title + "\n" + modelData.tooltip : ""
                   fontFamily: root.fontFamily
                 }
               }
@@ -543,22 +555,26 @@ Panel {
 
               Repeater {
                 model: root.hasMechanics ? [
-                  {
-                    value: "FIRST SHOT " + root.formatNumber(root.stats.reactionTimeMs, 0) + "ms",
-                    tooltip: "Median time from first enemy visibility to your first shot.\nLower generally means a faster reaction."
-                  },
-                  {
-                    value: "H " + root.formatNumber(root.stats.horizontalAdjustment, 1) + "°",
-                    tooltip: "Median horizontal aim correction before first damage.\nLower indicates better left–right pre-aim."
-                  },
-                  {
-                    value: "V " + root.formatNumber(root.stats.verticalAdjustment, 1) + "°",
-                    tooltip: "Median vertical aim correction before first damage.\nLower usually indicates better head-height placement."
-                  },
-                  {
-                    value: root.stats.mechanicsEngagements + " DUELS",
-                    tooltip: "Engagements with reconstructed first visibility and\nfirst damage within one second, used for aim metrics."
-                  }
+                {
+                  value: "FIRST SHOT " + root.formatNumber(root.stats.reactionTimeMs, 0) + "ms",
+                  title: "Reaction Time",
+                  tooltip: "Median time from first enemy visibility to your first shot.\nLower generally means a faster reaction."
+                },
+                {
+                  value: "H " + root.formatNumber(root.stats.horizontalAdjustment, 1) + "°",
+                  title: "Horizontal Adjustment",
+                  tooltip: "Median horizontal aim correction before first damage.\nLower indicates better left–right pre-aim."
+                },
+                {
+                  value: "V " + root.formatNumber(root.stats.verticalAdjustment, 1) + "°",
+                  title: "Vertical Adjustment",
+                  tooltip: "Median vertical aim correction before first damage.\nLower usually indicates better head-height placement."
+                },
+                {
+                  value: root.stats.mechanicsEngagements + " DUELS",
+                  title: "Qualifying Duels",
+                  tooltip: "Engagements with reconstructed first visibility and\nfirst damage within one second, used for aim metrics."
+                }
                 ] : []
 
                 Item {
@@ -584,7 +600,7 @@ Panel {
 
                   PanelToolTip {
                     visible: mechanicsDetailHover !== null && mechanicsDetailHover.containsMouse
-                    text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                    text: modelData !== null && modelData !== undefined ? modelData.title + "\n" + modelData.tooltip : ""
                     fontFamily: root.fontFamily
                   }
                 }
