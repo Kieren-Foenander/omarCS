@@ -19,8 +19,8 @@ These wall-clock figures describe the development machine and are not portable C
 ## Parity gates
 
 1. The vendored parser must retain the upstream fixture checksum before its output construction is changed.
-2. Existing Python semantic fixtures must pass against each ported Match Facts calculation.
-3. At least one Awpy-compatible real Demo must produce a normalized golden Match Report before the launcher changes to Rust. That golden now exists on the native geometry path, and `omarcs import` now calls `omarcs-native report`.
+2. Native semantic fixtures must cover each Match Facts calculation that used to live in Python.
+3. At least one real Demo must produce a normalized golden Match Report before the launcher changes to Rust. That golden now exists on the native geometry path, and `omarcs import` now calls `omarcs-native report`.
 4. The QML-facing Dashboard Summary schema must remain compatible throughout migration.
 
 Core player statistics now have a Rust parity fixture covering K/D/A, ADR,
@@ -39,8 +39,8 @@ seam: analysis version, checksum identity, merged stats and Engagement
 metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
 the full value. A real Premier Demo now has a committed golden Match Report
 for the native geometry path. Core player statistics, Engagement counts,
-Sprays, and coaching notes on that Demo match the Python/Awpy report. Native
-mesh loading keeps VRF Source-inch vertices instead of applying the GLB
+Sprays, and coaching notes on that Demo match the previous Python/Awpy report.
+Native mesh loading keeps VRF Source-inch vertices instead of applying the GLB
 metres / Y-up node matrix, so line-of-sight uses the same space as demo ticks.
 Crosshair medians can differ by a fraction of a degree because native uses
 tick observations at the damage tick rather than Awpy's attached attacker
@@ -51,7 +51,9 @@ through the existing Python store and Dashboard Summary seam. Setup copies
 the binary is missing. Map-geometry visibility is on the native path: FOV
 plus ray-mesh tests against cached CS2 physics GLBs, with
 `mechanicsQuality: "geometry"` when a mesh loads. Without a mesh the native
-path uses spotted-by observations the same way Python does.
+path uses spotted-by observations. The Python launcher no longer calculates
+Match Reports; it only checksums Demos, stores history, and projects the
+Dashboard Summary.
 
 The compact adapter still exists as a fallback when a parse materialises the generic dataframe. Match Facts now accumulate compact player ticks during the second pass: the parser writes interned weapons and flattened spotted-by lists instead of Option-filled columns, then round assignment drops spectators, steamid 0, and ticks outside reconstructed rounds. `omarcs-native probe` still uses the generic dataframe so the upstream fixture checksum can be compared independently of Match Facts output construction.
 

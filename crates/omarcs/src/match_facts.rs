@@ -301,11 +301,21 @@ fn reconstruct_rounds(markers: Vec<RoundMarker>) -> Vec<RoundFact> {
         winner: Side,
     }
 
-    fn finish(pending: Option<PendingRound>, rounds: &mut Vec<RoundFact>) {
+    fn finish(
+        pending: Option<PendingRound>,
+        rounds: &mut Vec<RoundFact>,
+        require_official_end: bool,
+    ) {
         let Some(pending) = pending else { return };
         let Some(end_tick) = pending.end_tick else {
             return;
         };
+        // Warmup and knife rounds emit round_end, then another round_start,
+        // without round_officially_ended. A real last round can also lack
+        // that marker when the Demo stops, so only drop superseded ones.
+        if require_official_end && pending.official_end_tick.is_none() {
+            return;
+        }
         rounds.push(RoundFact {
             number: rounds.len() + 1,
             start_tick: pending.start_tick,
@@ -321,7 +331,7 @@ fn reconstruct_rounds(markers: Vec<RoundMarker>) -> Vec<RoundFact> {
     for marker in markers {
         match marker.kind {
             RoundMarkerKind::Start => {
-                finish(pending.take(), &mut rounds);
+                finish(pending.take(), &mut rounds, true);
                 pending = Some(PendingRound {
                     start_tick: marker.tick,
                     freeze_end_tick: None,
@@ -348,7 +358,7 @@ fn reconstruct_rounds(markers: Vec<RoundMarker>) -> Vec<RoundFact> {
             }
         }
     }
-    finish(pending, &mut rounds);
+    finish(pending, &mut rounds, false);
     rounds
 }
 
@@ -625,5 +635,51 @@ mod tests {
         assert_eq!(rounds[0].official_end_tick, 110);
         assert_eq!(rounds[1].freeze_end_tick, None);
         assert_eq!(rounds[1].official_end_tick, 200);
+    }
+
+    #[test]
+    fn drops_warmup_round_that_never_officially_ended() {
+        let rounds = reconstruct_rounds(vec![
+            RoundMarker {
+                tick: 380,
+                kind: RoundMarkerKind::Start,
+                winner: Side::Unknown,
+            },
+            RoundMarker {
+                tick: 1830,
+                kind: RoundMarkerKind::FreezeEnd,
+                winner: Side::Unknown,
+            },
+            RoundMarker {
+                tick: 3026,
+                kind: RoundMarkerKind::End,
+                winner: Side::CounterTerrorist,
+            },
+            RoundMarker {
+                tick: 3890,
+                kind: RoundMarkerKind::Start,
+                winner: Side::Unknown,
+            },
+            RoundMarker {
+                tick: 20456,
+                kind: RoundMarkerKind::FreezeEnd,
+                winner: Side::Unknown,
+            },
+            RoundMarker {
+                tick: 23866,
+                kind: RoundMarkerKind::End,
+                winner: Side::Terrorist,
+            },
+            RoundMarker {
+                tick: 24314,
+                kind: RoundMarkerKind::OfficialEnd,
+                winner: Side::Unknown,
+            },
+        ]);
+
+        assert_eq!(rounds.len(), 1);
+        assert_eq!(rounds[0].number, 1);
+        assert_eq!(rounds[0].start_tick, 3890);
+        assert_eq!(rounds[0].winner, Side::Terrorist);
     }
 }

@@ -39,10 +39,10 @@ the widget reports that it is missing, run this once and reopen the widget:
 omarchy pkg add uv
 ```
 
-The initial run downloads Python analysis dependencies and verified CS2 helper
-tools, then builds `omarcs-native` when that binary is missing. It happens only
-after the user enables the plugin: Omarchy intentionally never runs plugin
-install hooks during `omarchy plugin add`.
+The initial run creates a small Python environment for the launcher, installs
+verified CS2 helper tools, and builds `omarcs-native` when that binary is
+missing. It happens only after the user enables the plugin: Omarchy
+intentionally never runs plugin install hooks during `omarchy plugin add`.
 
 ## Local development
 

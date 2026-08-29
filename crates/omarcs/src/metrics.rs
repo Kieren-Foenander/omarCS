@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use serde::Serialize;
 
-use crate::match_facts::{KillFact, MatchFacts, PlayerId, Side, round_index_for_tick};
+use crate::match_facts::{round_index_for_tick, KillFact, MatchFacts, PlayerId, Side};
 
 const CS2_TICKS_PER_SECOND: i32 = 64;
 const TRADE_WINDOW_SECONDS: i32 = 5;
@@ -62,11 +62,13 @@ pub fn resolve_player(facts: &MatchFacts, selector: &str) -> Result<PlayerId> {
 }
 
 pub fn calculate(facts: &MatchFacts, player: PlayerId) -> PlayerMetrics {
+    let in_match =
+        |tick: i32| facts.rounds.is_empty() || round_index_for_tick(&facts.rounds, tick).is_some();
     let enemy_kills = facts
         .kills
         .iter()
         .enumerate()
-        .filter(|(_, kill)| is_enemy_kill(kill))
+        .filter(|(_, kill)| in_match(kill.tick) && is_enemy_kill(kill))
         .collect::<Vec<_>>();
     let (traded_deaths, trade_kills) = trade_flags(facts, &enemy_kills);
 
@@ -126,7 +128,8 @@ pub fn calculate(facts: &MatchFacts, player: PlayerId) -> PlayerMetrics {
     let mut damage = 0;
     let mut utility_damage = 0;
     for fact in facts.damages.iter().filter(|fact| {
-        fact.attacker == Some(player)
+        in_match(fact.tick)
+            && fact.attacker == Some(player)
             && fact.victim != Some(player)
             && (fact.attacker_side == Side::Unknown
                 || fact.victim_side == Side::Unknown
@@ -142,11 +145,9 @@ pub fn calculate(facts: &MatchFacts, player: PlayerId) -> PlayerMetrics {
     let mut enemies_flashed = 0;
     let mut friends_flashed = 0;
     let mut enemy_flash_seconds = 0.0_f64;
-    for blind in facts
-        .blinds
-        .iter()
-        .filter(|blind| blind.attacker == Some(player) && blind.victim != Some(player))
-    {
+    for blind in facts.blinds.iter().filter(|blind| {
+        in_match(blind.tick) && blind.attacker == Some(player) && blind.victim != Some(player)
+    }) {
         if blind.attacker_side != Side::Unknown && blind.attacker_side == blind.victim_side {
             friends_flashed += 1;
         } else {
