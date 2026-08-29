@@ -14,6 +14,8 @@ omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Co
 - Automatic scanning of `~/Downloads`, `~/.local/share/omarcs/demos`, and the local CS2 folder
 - Map-aware crosshair correction, first-shot time, time-to-damage, spotted
   accuracy, and proper counter-strafing
+- Interactive AK-47, Galil, M4A4, and M4A1-S spray-control targets with
+  numbered bullets, consistency halos, confidence, and coaching
 
 All demos and derived data stay on this computer.
 
@@ -82,6 +84,14 @@ counter-strafing counts uncrouched rifle shots below 34% of that weapon's
 maximum movement speed. Static geometry cannot perfectly model smoke edges or
 moving props, so trends across several matches are more meaningful than a
 single duel.
+
+Spray control groups bursts of at least five bullets that begin while settled
+and have a plausible visible target. Each recorded shot ray is projected onto
+the enemy's head plane at that tick. The dashboard shows the median position
+for each bullet number across the latest ten matches; the halo is the middle
+50% of those positions. Spray transfers are target-relative at every shot,
+while wall spam and shots without a visible enemy are excluded. Low sample
+counts are labelled rather than presented as reliable coaching.
 
 ## Optional configuration
 

@@ -14,6 +14,8 @@ Panel {
   property string loadError: ""
   property string refreshError: ""
   property int selectedIndex: 0
+  property string page: "stats"
+  property int sprayWeaponIndex: 0
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
@@ -29,6 +31,12 @@ Panel {
   readonly property var stats: selectedMatch && selectedMatch.stats ? selectedMatch.stats : null
   readonly property bool hasMechanics: !!stats && Number(stats.mechanicsEngagements || 0) > 0
   readonly property var trends: report && report.trends ? report.trends : ({ matches: 0, wins: 0, rating: 0, adr: 0, kast: 0 })
+  readonly property var sprayControl: report && report.sprayControl ? report.sprayControl : ({ matches: 0, weapons: [] })
+  readonly property var sprayWeapons: sprayControl && sprayControl.weapons ? sprayControl.weapons : []
+  readonly property var sprayWeapon: sprayWeapons.length > 0
+    ? sprayWeapons[Math.max(0, Math.min(sprayWeaponIndex, sprayWeapons.length - 1))]
+    : null
+  readonly property bool hasSprayData: sprayWeapons.some(function(weapon) { return Number(weapon.sprays || 0) > 0 })
   readonly property string status: report ? String(report.status || "empty") : "empty"
   readonly property bool busy: status === "analyzing" || refreshProcess.running
 
@@ -65,6 +73,16 @@ Panel {
 
   function selectNewer() {
     selectMatch(selectedIndex - 1)
+  }
+
+  function selectSprayWeapon(index) {
+    if (sprayWeapons.length < 1) return
+    sprayWeaponIndex = Math.max(0, Math.min(Number(index), sprayWeapons.length - 1))
+  }
+
+  function cycleSprayWeapon(direction) {
+    if (sprayWeapons.length < 1) return
+    sprayWeaponIndex = (sprayWeaponIndex + direction + sprayWeapons.length) % sprayWeapons.length
   }
 
   function score(match) {
@@ -130,6 +148,8 @@ Panel {
     function refresh(): string { root.refreshNow(); return "ok" }
     function older(): string { root.selectOlder(); return "ok" }
     function newer(): string { root.selectNewer(); return "ok" }
+    function spray(): string { root.page = "spray"; root.open(); return "ok" }
+    function stats(): string { root.page = "stats"; root.open(); return "ok" }
   }
 
   WidgetButton {
@@ -164,8 +184,13 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
-        if (dx < 0) root.selectOlder()
-        else if (dx > 0) root.selectNewer()
+        if (root.page === "spray") {
+          if (dx < 0) root.cycleSprayWeapon(-1)
+          else if (dx > 0) root.cycleSprayWeapon(1)
+        } else {
+          if (dx < 0) root.selectOlder()
+          else if (dx > 0) root.selectNewer()
+        }
       }
       onActivateRequested: root.refreshNow()
       onCloseRequested: root.close()
@@ -199,7 +224,7 @@ Panel {
         }
 
         Row {
-          visible: root.matchCount > 1
+          visible: root.matchCount > 1 && root.page === "stats"
           width: parent.width
           spacing: Style.space(8)
 
@@ -238,6 +263,34 @@ Panel {
           }
         }
 
+        Row {
+          visible: !!root.selectedMatch && root.hasSprayData
+          width: parent.width
+          spacing: Style.space(6)
+
+          Button {
+            width: (parent.width - Style.space(6)) / 2
+            text: "MATCH STATS"
+            bordered: true
+            foreground: root.page === "stats" ? root.winColor : root.dim
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.page = "stats"
+          }
+
+          Button {
+            width: (parent.width - Style.space(6)) / 2
+            text: "SPRAY CONTROL"
+            bordered: true
+            foreground: root.page === "spray" ? root.winColor : root.dim
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.page = "spray"
+          }
+        }
+
         Text {
           visible: !root.selectedMatch
           width: parent.width
@@ -254,7 +307,7 @@ Panel {
         }
 
         Column {
-          visible: !!root.selectedMatch
+          visible: !!root.selectedMatch && root.page === "stats"
           width: parent.width
           spacing: Style.space(9)
 
@@ -541,12 +594,12 @@ Panel {
         }
 
         PanelSeparator {
-          visible: !!root.selectedMatch
+          visible: !!root.selectedMatch && root.page === "stats"
           foreground: root.foreground
         }
 
         Column {
-          visible: !!root.selectedMatch
+          visible: !!root.selectedMatch && root.page === "stats"
           width: parent.width
           spacing: Style.space(8)
 
@@ -572,12 +625,12 @@ Panel {
         }
 
         PanelSeparator {
-          visible: root.recent.length > 1
+          visible: root.recent.length > 1 && root.page === "stats"
           foreground: root.foreground
         }
 
         Column {
-          visible: root.recent.length > 1
+          visible: root.recent.length > 1 && root.page === "stats"
           width: parent.width
           spacing: Style.space(7)
 
@@ -633,6 +686,230 @@ Panel {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.selectMatch(index)
               }
+            }
+          }
+        }
+
+        Column {
+          visible: !!root.selectedMatch && root.page === "spray"
+          width: parent.width
+          spacing: Style.space(9)
+
+          PanelSectionHeader {
+            width: parent.width
+            text: "SPRAY CONTROL  ·  LAST " + root.sprayControl.matches + " MATCHES"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+
+            Repeater {
+              model: root.sprayWeapons
+
+              Button {
+                required property var modelData
+                required property int index
+                width: (content.width - Style.space(18)) / 4
+                text: modelData.shortName + " · " + modelData.sprays
+                bordered: true
+                foreground: root.sprayWeaponIndex === index ? root.winColor : root.dim
+                fontFamily: root.fontFamily
+                fontSize: Style.font.caption
+                verticalPadding: Style.space(4)
+                tooltipText: modelData.name + " — " + modelData.sprays + " qualifying sprays"
+                onClicked: root.selectSprayWeapon(index)
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            text: root.sprayWeapon
+              ? root.sprayWeapon.sprays + " SPRAYS   ·   BULLETS 1–10   ·   CONFIDENCE " + root.sprayWeapon.confidence
+              : "NO SPRAY DATA"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          Canvas {
+            id: sprayCanvas
+            width: parent.width
+            height: Style.space(224)
+
+            property var weapon: root.sprayWeapon
+            property color foreground: root.foreground
+            property color dimColor: root.dim
+            property color accent: root.winColor
+
+            function clamp(value, minimum, maximum) {
+              return Math.max(minimum, Math.min(maximum, value))
+            }
+
+            function drawTarget(ctx, centerX, centerY) {
+              ctx.strokeStyle = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.20)
+              ctx.lineWidth = 1
+              for (var radius = 22; radius <= 66; radius += 22) {
+                ctx.beginPath()
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
+                ctx.stroke()
+              }
+              ctx.setLineDash([3, 4])
+              ctx.beginPath()
+              ctx.moveTo(centerX - 72, centerY)
+              ctx.lineTo(centerX + 72, centerY)
+              ctx.moveTo(centerX, centerY - 72)
+              ctx.lineTo(centerX, centerY + 72)
+              ctx.stroke()
+              ctx.setLineDash([])
+
+              ctx.fillStyle = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.05)
+              ctx.strokeStyle = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.24)
+              ctx.beginPath()
+              ctx.arc(centerX, centerY, 13, 0, Math.PI * 2)
+              ctx.fill()
+              ctx.stroke()
+              ctx.beginPath()
+              ctx.moveTo(centerX - 35, centerY + 66)
+              ctx.lineTo(centerX - 31, centerY + 38)
+              ctx.quadraticCurveTo(centerX, centerY + 22, centerX + 31, centerY + 38)
+              ctx.lineTo(centerX + 35, centerY + 66)
+              ctx.closePath()
+              ctx.fill()
+              ctx.stroke()
+            }
+
+            function drawDot(ctx, x, y, number, color, radius) {
+              ctx.fillStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.10)
+              ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.40)
+              ctx.beginPath()
+              ctx.arc(x, y, radius, 0, Math.PI * 2)
+              ctx.fill()
+              ctx.stroke()
+
+              ctx.fillStyle = Qt.rgba(0.04, 0.05, 0.08, 0.96)
+              ctx.strokeStyle = color
+              ctx.lineWidth = 1.5
+              ctx.beginPath()
+              ctx.arc(x, y, 6, 0, Math.PI * 2)
+              ctx.fill()
+              ctx.stroke()
+              ctx.fillStyle = foreground
+              ctx.font = "bold 9px " + root.fontFamily
+              ctx.textAlign = "center"
+              ctx.textBaseline = "middle"
+              ctx.fillText(String(number), x, y + 0.5)
+            }
+
+            onWeaponChanged: requestPaint()
+            onForegroundChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            Component.onCompleted: requestPaint()
+
+            onPaint: {
+              var ctx = getContext("2d")
+              ctx.clearRect(0, 0, width, height)
+              var gap = Style.space(8)
+              var cardWidth = (width - gap) / 2
+              var centerY = height / 2 + Style.space(8)
+              var perfectX = cardWidth / 2
+              var actualX = cardWidth + gap + cardWidth / 2
+
+              ctx.fillStyle = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.035)
+              ctx.strokeStyle = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15)
+              ctx.lineWidth = 1
+              ctx.fillRect(0, 0, cardWidth, height)
+              ctx.strokeRect(0.5, 0.5, cardWidth - 1, height - 1)
+              ctx.fillRect(cardWidth + gap, 0, cardWidth, height)
+              ctx.strokeRect(cardWidth + gap + 0.5, 0.5, cardWidth - 1, height - 1)
+
+              ctx.fillStyle = foreground
+              ctx.font = "bold 10px " + root.fontFamily
+              ctx.textAlign = "center"
+              ctx.textBaseline = "middle"
+              ctx.fillText("PERFECT CONTROL", perfectX, Style.space(13))
+              ctx.fillText("YOUR MEDIAN", actualX, Style.space(13))
+              drawTarget(ctx, perfectX, centerY)
+              drawTarget(ctx, actualX, centerY)
+
+              var ideal = [[0, 0], [8, -2], [-8, 2], [3, 8], [-3, -8], [10, 8], [-10, -8], [-10, 8], [10, -8], [0, 12]]
+              for (var idealIndex = 0; idealIndex < ideal.length; idealIndex++) {
+                drawDot(ctx, perfectX + ideal[idealIndex][0], centerY - ideal[idealIndex][1], idealIndex + 1, accent, 7)
+              }
+
+              var shots = weapon && weapon.shots ? weapon.shots : []
+              if (shots.length > 0) {
+                ctx.strokeStyle = Qt.rgba(0.21, 0.82, 0.73, 0.50)
+                ctx.setLineDash([4, 4])
+                ctx.beginPath()
+                for (var pathIndex = 0; pathIndex < shots.length; pathIndex++) {
+                  var pathShot = shots[pathIndex]
+                  var pathX = actualX + clamp(Number(pathShot.x) * 0.8, -70, 70)
+                  var pathY = centerY - clamp(Number(pathShot.y) * 0.8, -70, 70)
+                  if (pathIndex === 0) ctx.moveTo(pathX, pathY)
+                  else ctx.lineTo(pathX, pathY)
+                }
+                ctx.stroke()
+                ctx.setLineDash([])
+                for (var shotIndex = 0; shotIndex < shots.length; shotIndex++) {
+                  var shot = shots[shotIndex]
+                  var shotX = actualX + clamp(Number(shot.x) * 0.8, -70, 70)
+                  var shotY = centerY - clamp(Number(shot.y) * 0.8, -70, 70)
+                  var spread = clamp(Math.max(Number(shot.radiusX), Number(shot.radiusY)) * 0.5, 7, 19)
+                  drawDot(ctx, shotX, shotY, shot.number, "#35d0ba", spread)
+                }
+              } else {
+                ctx.fillStyle = dimColor
+                ctx.font = "10px " + root.fontFamily
+                ctx.fillText("MORE MATCHES NEEDED", actualX, centerY)
+              }
+            }
+
+            MouseArea {
+              id: sprayHover
+              anchors.fill: parent
+              hoverEnabled: true
+              acceptedButtons: Qt.NoButton
+            }
+
+            PanelToolTip {
+              visible: sprayHover.containsMouse
+              text: "Each number is the median position of that bullet across qualifying sprays.\nThe halo is the middle 50% of results. Centre represents the enemy's head."
+              fontFamily: root.fontFamily
+            }
+          }
+
+          Text {
+            width: parent.width
+            text: "CENTRE = ENEMY HEAD   ·   NUMBER = BULLET ORDER   ·   HALO = MIDDLE 50%"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          Rectangle {
+            width: parent.width
+            height: sprayCoach.implicitHeight + Style.space(20)
+            radius: Style.cornerRadius
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+            border.color: Qt.rgba(root.winColor.r, root.winColor.g, root.winColor.b, 0.45)
+
+            Text {
+              id: sprayCoach
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.margins: Style.space(10)
+              text: root.sprayWeapon ? "COACH  ·  " + root.sprayWeapon.coach : "Keep collecting matches to build a spray profile."
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
             }
           }
         }

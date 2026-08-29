@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .geometry import load_map_mesh
 from .mechanics import CS2_TICKS_PER_SECOND, calculate_mechanics
+from .spray import calculate_spray_bursts
 
-ANALYSIS_VERSION = 2
+ANALYSIS_VERSION = 4
 
 
 def value(row: dict[str, Any], *names: str, default: Any = None) -> Any:
@@ -59,22 +61,37 @@ def resolve_player(demo: Any, selector: str | None) -> tuple[str, str]:
         selector_folded = selector.casefold()
         if selector in players:
             return selector, players[selector]
-        matches = [(steam_id, name) for steam_id, name in players.items() if name.casefold() == selector_folded]
+        matches = [
+            (steam_id, name)
+            for steam_id, name in players.items()
+            if name.casefold() == selector_folded
+        ]
         if len(matches) == 1:
             return matches[0]
     choices = ", ".join(sorted(players.values())) or "no players detected"
-    raise ValueError(f"Player {selector or 'is not configured'}; available players: {choices}")
+    raise ValueError(
+        f"Player {selector or 'is not configured'}; available players: {choices}"
+    )
 
 
 def is_enemy_kill(row: dict[str, Any]) -> bool:
     attacker = string_id(value(row, "attacker_steamid", "attacker_steam_id"))
-    victim = string_id(value(row, "victim_steamid", "victim_steam_id", "user_steamid", "user_steam_id"))
+    victim = string_id(
+        value(row, "victim_steamid", "victim_steam_id", "user_steamid", "user_steam_id")
+    )
     attacker_side = str(value(row, "attacker_side", default="") or "")
     victim_side = str(value(row, "victim_side", "user_side", default="") or "")
-    return bool(attacker and victim and attacker != victim and (not attacker_side or not victim_side or attacker_side != victim_side))
+    return bool(
+        attacker
+        and victim
+        and attacker != victim
+        and (not attacker_side or not victim_side or attacker_side != victim_side)
+    )
 
 
-def trade_flags(kills: list[dict[str, Any]], tickrate: int, window_seconds: float = 5.0) -> tuple[set[int], set[int]]:
+def trade_flags(
+    kills: list[dict[str, Any]], tickrate: int, window_seconds: float = 5.0
+) -> tuple[set[int], set[int]]:
     """Return indices for traded deaths and their corresponding trade kills."""
     traded_deaths: set[int] = set()
     trade_kills: set[int] = set()
@@ -96,10 +113,18 @@ def trade_flags(kills: list[dict[str, Any]], tickrate: int, window_seconds: floa
                 trade_tick = int(value(trade, "tick", default=0) or 0)
                 if trade_tick - death_tick > window:
                     break
-                trade_attacker = string_id(value(trade, "attacker_steamid", "attacker_steam_id"))
-                trade_victim = string_id(value(trade, "victim_steamid", "victim_steam_id"))
+                trade_attacker = string_id(
+                    value(trade, "attacker_steamid", "attacker_steam_id")
+                )
+                trade_victim = string_id(
+                    value(trade, "victim_steamid", "victim_steam_id")
+                )
                 trade_side = str(value(trade, "attacker_side", default="") or "")
-                if trade_victim == killer and trade_attacker != dead_player and (not dead_side or trade_side == dead_side):
+                if (
+                    trade_victim == killer
+                    and trade_attacker != dead_player
+                    and (not dead_side or trade_side == dead_side)
+                ):
                     traded_deaths.add(death_index)
                     trade_kills.add(trade_index)
                     break
@@ -115,31 +140,52 @@ def round_sides(demo: Any, steam_id: str) -> dict[int, str]:
         side = str(value(tick, "side", "team_name", default="") or "")
         if round_num and side:
             counts[round_num][side] += 1
-    return {round_num: max(side_counts, key=side_counts.get) for round_num, side_counts in counts.items()}
+    return {
+        round_num: max(side_counts, key=side_counts.get)
+        for round_num, side_counts in counts.items()
+    }
 
 
 def utility_weapon(row: dict[str, Any]) -> bool:
     weapon = str(value(row, "weapon", "weapon_name", default="") or "").casefold()
-    return any(token in weapon for token in ("hegrenade", "he grenade", "molotov", "incgrenade", "incendiary"))
+    return any(
+        token in weapon
+        for token in ("hegrenade", "he grenade", "molotov", "incgrenade", "incendiary")
+    )
 
 
-def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
-    kill_rows = [kill for kill in rows(getattr(demo, "kills", None)) if is_enemy_kill(kill)]
+def calculate_player_metrics(
+    demo: Any, steam_id: str, mesh: Any = None
+) -> dict[str, Any]:
+    kill_rows = [
+        kill for kill in rows(getattr(demo, "kills", None)) if is_enemy_kill(kill)
+    ]
     damage_rows = rows(getattr(demo, "damages", None))
     rounds_rows = rows(getattr(demo, "rounds", None))
     tickrate = CS2_TICKS_PER_SECOND
     traded_deaths, trade_kills = trade_flags(kill_rows, tickrate)
 
-    kills = sum(string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id for row in kill_rows)
-    deaths = sum(string_id(value(row, "victim_steamid", "victim_steam_id")) == steam_id for row in kill_rows)
-    assists = sum(string_id(value(row, "assister_steamid", "assister_steam_id")) == steam_id for row in kill_rows)
+    kills = sum(
+        string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id
+        for row in kill_rows
+    )
+    deaths = sum(
+        string_id(value(row, "victim_steamid", "victim_steam_id")) == steam_id
+        for row in kill_rows
+    )
+    assists = sum(
+        string_id(value(row, "assister_steamid", "assister_steam_id")) == steam_id
+        for row in kill_rows
+    )
     headshots = sum(
         string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id
         and bool(value(row, "headshot", "is_headshot", default=False))
         for row in kill_rows
     )
 
-    round_events: dict[int, dict[str, bool]] = defaultdict(lambda: {"kill": False, "assist": False, "died": False, "traded": False})
+    round_events: dict[int, dict[str, bool]] = defaultdict(
+        lambda: {"kill": False, "assist": False, "died": False, "traded": False}
+    )
     for index, row in enumerate(kill_rows):
         round_num = int(value(row, "round_num", default=0) or 0)
         if string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id:
@@ -162,14 +208,25 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
     for row in damage_rows:
         if string_id(value(row, "attacker_steamid", "attacker_steam_id")) != steam_id:
             continue
-        victim_id = string_id(value(row, "victim_steamid", "victim_steam_id", "user_steamid", "user_steam_id"))
+        victim_id = string_id(
+            value(
+                row,
+                "victim_steamid",
+                "victim_steam_id",
+                "user_steamid",
+                "user_steam_id",
+            )
+        )
         if victim_id == steam_id:
             continue
         attacker_side = str(value(row, "attacker_side", default="") or "")
         victim_side = str(value(row, "victim_side", "user_side", default="") or "")
         if attacker_side and victim_side and attacker_side == victim_side:
             continue
-        amount = max(0, int(value(row, "dmg_health_real", "damage", "dmg_health", default=0) or 0))
+        amount = max(
+            0,
+            int(value(row, "dmg_health_real", "damage", "dmg_health", default=0) or 0),
+        )
         damage += amount
         if utility_weapon(row):
             utility_damage += amount
@@ -179,13 +236,19 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
     for row in kill_rows:
         by_round[int(value(row, "round_num", default=0) or 0)].append(row)
     for round_kills in by_round.values():
-        first = min(round_kills, key=lambda row: int(value(row, "tick", default=0) or 0))
+        first = min(
+            round_kills, key=lambda row: int(value(row, "tick", default=0) or 0)
+        )
         if string_id(value(first, "attacker_steamid", "attacker_steam_id")) == steam_id:
             openings_for += 1
         if string_id(value(first, "victim_steamid", "victim_steam_id")) == steam_id:
             openings_against += 1
 
-    blinds = rows(getattr(demo, "events", {}).get("player_blind") if hasattr(demo, "events") else None)
+    blinds = rows(
+        getattr(demo, "events", {}).get("player_blind")
+        if hasattr(demo, "events")
+        else None
+    )
     enemies_flashed = friends_flashed = 0
     enemy_flash_seconds = 0.0
     for row in blinds:
@@ -229,7 +292,14 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
     adr = damage / rounds_denominator
     kast = 100 * kast_rounds / rounds_denominator
     impact = 2.13 * kpr + 0.42 * apr - 0.41
-    rating = 0.0073 * kast + 0.3591 * kpr - 0.5329 * dpr + 0.2372 * impact + 0.0032 * adr + 0.1587
+    rating = (
+        0.0073 * kast
+        + 0.3591 * kpr
+        - 0.5329 * dpr
+        + 0.2372 * impact
+        + 0.0032 * adr
+        + 0.1587
+    )
 
     return {
         "kills": kills,
@@ -242,8 +312,17 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
         "headshotPercent": round(100 * headshots / max(1, kills), 1),
         "openingKills": openings_for,
         "openingDeaths": openings_against,
-        "tradeKills": sum(index in trade_kills and string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id for index, row in enumerate(kill_rows)),
-        "tradedDeaths": sum(index in traded_deaths and string_id(value(row, "victim_steamid", "victim_steam_id")) == steam_id for index, row in enumerate(kill_rows)),
+        "tradeKills": sum(
+            index in trade_kills
+            and string_id(value(row, "attacker_steamid", "attacker_steam_id"))
+            == steam_id
+            for index, row in enumerate(kill_rows)
+        ),
+        "tradedDeaths": sum(
+            index in traded_deaths
+            and string_id(value(row, "victim_steamid", "victim_steam_id")) == steam_id
+            for index, row in enumerate(kill_rows)
+        ),
         "utilityDamage": utility_damage,
         "enemiesFlashed": enemies_flashed,
         "friendsFlashed": friends_flashed,
@@ -252,44 +331,66 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
         "roundsFor": rounds_for,
         "roundsAgainst": rounds_against,
         "result": result,
-        **calculate_mechanics(demo, steam_id),
+        **calculate_mechanics(demo, steam_id, mesh),
     }
 
 
 def coaching_insights(stats: dict[str, Any]) -> list[str]:
     insights: list[str] = []
-    if stats.get("mechanicsEngagements", 0) >= 3 and (stats.get("crosshairPlacement") or 0) > 10:
+    if (
+        stats.get("mechanicsEngagements", 0) >= 3
+        and (stats.get("crosshairPlacement") or 0) > 10
+    ):
         insights.append(
             f"Crosshair correction averaged {stats['crosshairPlacement']:.1f}°; pre-aim closer to likely head positions."
         )
-    if stats.get("mechanicsEngagements", 0) >= 3 and (stats.get("timeToDamageMs") or 0) > 650:
+    if (
+        stats.get("mechanicsEngagements", 0) >= 3
+        and (stats.get("timeToDamageMs") or 0) > 650
+    ):
         insights.append(
             f"Time to damage was {stats['timeToDamageMs']:.0f} ms; review whether placement or first-shot accuracy delayed fights."
         )
-    if stats.get("counterStrafeShots", 0) >= 5 and (stats.get("counterStrafePercent") or 100) < 70:
+    if (
+        stats.get("counterStrafeShots", 0) >= 5
+        and (stats.get("counterStrafePercent") or 100) < 70
+    ):
         insights.append(
             f"Only {stats['counterStrafePercent']:.0f}% of rifle shots were fully settled; finish the counter-strafe before firing."
         )
     if stats["openingDeaths"] > stats["openingKills"]:
-        insights.append("Opening duels cost more rounds than they created; review your first-contact fights.")
+        insights.append(
+            "Opening duels cost more rounds than they created; review your first-contact fights."
+        )
     if stats["friendsFlashed"] > 1:
-        insights.append(f"You flashed teammates {stats['friendsFlashed']} times; tighten flash timing and calls.")
+        insights.append(
+            f"You flashed teammates {stats['friendsFlashed']} times; tighten flash timing and calls."
+        )
     if stats["utilityDamage"] < max(10, stats["rounds"] * 2):
-        insights.append("Utility damage was quiet; look for earlier HE and molotov value.")
+        insights.append(
+            "Utility damage was quiet; look for earlier HE and molotov value."
+        )
     if stats["tradedDeaths"] < max(1, stats["deaths"] // 3) and stats["deaths"] >= 6:
-        insights.append("Few deaths were traded; check spacing and whether teammates could follow your fights.")
+        insights.append(
+            "Few deaths were traded; check spacing and whether teammates could follow your fights."
+        )
     if stats["adr"] >= 90:
         insights.append("High-impact damage game—your ADR was above 90.")
-    return insights[:3] or ["No obvious outlier this match; compare it with your next few games."]
+    return insights[:3] or [
+        "No obvious outlier this match; compare it with your next few games."
+    ]
 
 
-def analyze_demo(path: Path, player_selector: str, checksum: str | None = None) -> dict[str, Any]:
+def analyze_demo(
+    path: Path, player_selector: str, checksum: str | None = None
+) -> dict[str, Any]:
     from awpy import Demo
 
     demo = Demo(path)
     events = list(demo.default_events)
-    if "player_blind" not in events:
-        events.append("player_blind")
+    for event in ("player_blind", "fire_bullets"):
+        if event not in events:
+            events.append(event)
     demo.parse(
         events=events,
         player_props=[
@@ -303,17 +404,23 @@ def analyze_demo(path: Path, player_selector: str, checksum: str | None = None) 
         ],
     )
     steam_id, player_name = resolve_player(demo, player_selector)
-    stats = calculate_player_metrics(demo, steam_id)
+    map_name = str(getattr(demo, "header", {}).get("map_name") or "Unknown map")
+    mesh = load_map_mesh(map_name)
+    stats = calculate_player_metrics(demo, steam_id, mesh)
+    sprays = calculate_spray_bursts(demo, steam_id, mesh)
     digest = checksum or demo_checksum(path)
-    played_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+    played_at = datetime.fromtimestamp(
+        path.stat().st_mtime, tz=timezone.utc
+    ).isoformat()
     return {
         "analysisVersion": ANALYSIS_VERSION,
         "id": digest[:16],
         "checksum": digest,
         "path": str(path.resolve()),
         "playedAt": played_at,
-        "map": str(getattr(demo, "header", {}).get("map_name") or "Unknown map"),
+        "map": map_name,
         "player": {"steamId": steam_id, "name": player_name},
         "stats": stats,
+        "sprays": sprays,
         "insights": coaching_insights(stats),
     }

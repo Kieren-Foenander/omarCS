@@ -45,7 +45,9 @@ class Store:
         self.connection.close()
 
     def has_checksum(self, checksum: str, analysis_version: int = 1) -> bool:
-        row = self.connection.execute("SELECT payload FROM matches WHERE checksum = ?", (checksum,)).fetchone()
+        row = self.connection.execute(
+            "SELECT payload FROM matches WHERE checksum = ?", (checksum,)
+        ).fetchone()
         if row is None:
             return False
         try:
@@ -65,10 +67,20 @@ class Store:
             ON CONFLICT(checksum) DO UPDATE SET payload = excluded.payload
             """,
             (
-                match["id"], match["checksum"], match["playedAt"], match["map"],
-                match["player"]["steamId"], match["player"]["name"], stats["result"],
-                stats["roundsFor"], stats["roundsAgainst"], stats["rating"], stats["adr"],
-                stats["kast"], stats["kd"], json.dumps(match, separators=(",", ":")),
+                match["id"],
+                match["checksum"],
+                match["playedAt"],
+                match["map"],
+                match["player"]["steamId"],
+                match["player"]["name"],
+                stats["result"],
+                stats["roundsFor"],
+                stats["roundsAgainst"],
+                stats["rating"],
+                stats["adr"],
+                stats["kast"],
+                stats["kd"],
+                json.dumps(match, separators=(",", ":")),
             ),
         )
         self.connection.commit()
@@ -101,16 +113,30 @@ class Store:
         return self.publish()
 
     def build_summary(self, limit: int = 20) -> dict[str, Any]:
+        from .spray import aggregate_sprays
+
         matches = self.matches(limit)
         recent = matches[:5]
         trend_matches = matches[:10]
-        trends: dict[str, Any] = {"matches": len(trend_matches), "wins": 0, "rating": 0, "adr": 0, "kast": 0}
+        trends: dict[str, Any] = {
+            "matches": len(trend_matches),
+            "wins": 0,
+            "rating": 0,
+            "adr": 0,
+            "kast": 0,
+        }
         if trend_matches:
-            trends["wins"] = sum(match["stats"]["result"] == "W" for match in trend_matches)
+            trends["wins"] = sum(
+                match["stats"]["result"] == "W" for match in trend_matches
+            )
             for key in ("rating", "adr", "kast"):
-                trends[key] = round(sum(float(match["stats"][key]) for match in trend_matches) / len(trend_matches), 2 if key == "rating" else 1)
+                trends[key] = round(
+                    sum(float(match["stats"][key]) for match in trend_matches)
+                    / len(trend_matches),
+                    2 if key == "rating" else 1,
+                )
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "status": "ready" if matches else "empty",
             "message": "" if matches else "Import a CS2 demo to get started.",
@@ -118,10 +144,13 @@ class Store:
             "latest": matches[0] if matches else None,
             "recent": recent,
             "trends": trends,
+            "sprayControl": aggregate_sprays(trend_matches),
         }
 
     def _atomic_json(self, payload: dict[str, Any]) -> None:
-        handle, temp_name = tempfile.mkstemp(prefix="summary.", suffix=".json", dir=self.root)
+        handle, temp_name = tempfile.mkstemp(
+            prefix="summary.", suffix=".json", dir=self.root
+        )
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as output:
                 json.dump(payload, output, indent=2)

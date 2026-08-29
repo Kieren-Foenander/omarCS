@@ -7,7 +7,7 @@ from typing import Any
 
 import polars as pl
 
-from .geometry import load_map_mesh, visible_rows
+from .geometry import visible_rows
 
 CS2_TICKS_PER_SECOND = 64
 ENGAGEMENT_TICKS = CS2_TICKS_PER_SECOND
@@ -263,7 +263,7 @@ def geometry_exposures(
     return exposures, visible_shot_ticks
 
 
-def calculate_mechanics(demo: Any, steam_id: str) -> dict[str, Any]:
+def calculate_mechanics(demo: Any, steam_id: str, mesh: Any = None) -> dict[str, Any]:
     metrics = empty_metrics()
     ticks = getattr(demo, "ticks", None)
     if not isinstance(ticks, pl.DataFrame) or ticks.is_empty():
@@ -282,8 +282,6 @@ def calculate_mechanics(demo: Any, steam_id: str) -> dict[str, Any]:
         and player_id(row.get("victim_steamid")) != steam_id
         and is_gun(row.get("weapon"))
     ]
-    map_name = str(getattr(demo, "header", {}).get("map_name") or "")
-    mesh = load_map_mesh(map_name)
     try:
         if mesh is not None:
             try:
