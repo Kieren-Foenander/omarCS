@@ -38,9 +38,13 @@ A native Match Report now has a Rust parity fixture covering the QML JSON
 seam: analysis version, checksum identity, merged stats and Engagement
 metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
 the full value. A real Premier Demo now has a committed golden Match Report
-for the native geometry path. Core player statistics on that Demo match the
-Python/Awpy report; Engagement metrics, Sprays, and the first coaching note
-currently differ from Python and are snapshotted as native output.
+for the native geometry path. Core player statistics, Engagement counts,
+Sprays, and coaching notes on that Demo match the Python/Awpy report. Native
+mesh loading keeps VRF Source-inch vertices instead of applying the GLB
+metres / Y-up node matrix, so line-of-sight uses the same space as demo ticks.
+Crosshair medians can differ by a fraction of a degree because native uses
+tick observations at the damage tick rather than Awpy's attached attacker
+angles.
 `omarcs import`, refresh, and bootstrap now persist that native Match Report
 through the existing Python store and Dashboard Summary seam. Setup copies
 `omarcs-native` into the local data directory, building it with cargo when

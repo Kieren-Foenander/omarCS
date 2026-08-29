@@ -74,6 +74,7 @@ impl Mesh {
         }
     }
 
+    #[cfg(test)]
     pub fn axis_aligned_box(extents: [f32; 3], translation: [f32; 3]) -> Self {
         let half = [extents[0] * 0.5, extents[1] * 0.5, extents[2] * 0.5];
         let min = [
@@ -292,15 +293,9 @@ fn load_glb(path: &Path) -> Option<Mesh> {
     let gltf = gltf::Gltf::from_slice(&bytes).ok()?;
     let blob = gltf.blob.as_deref()?;
     let mut triangles = Vec::new();
-    let identity = [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-    ];
     for scene in gltf.scenes() {
         for node in scene.nodes() {
-            collect_node(node, identity, blob, &mut triangles);
+            collect_node(node, blob, &mut triangles);
         }
     }
     if triangles.is_empty() {
@@ -309,30 +304,23 @@ fn load_glb(path: &Path) -> Option<Mesh> {
     Some(Mesh::from_triangles(triangles))
 }
 
-fn collect_node(
-    node: gltf::Node<'_>,
-    parent: [[f32; 4]; 4],
-    blob: &[u8],
-    triangles: &mut Vec<[[f32; 3]; 3]>,
-) {
-    let world = mul_mat(parent, node.transform().matrix());
+fn collect_node(node: gltf::Node<'_>, blob: &[u8], triangles: &mut Vec<[[f32; 3]; 3]>) {
     if let Some(mesh) = node.mesh() {
         let mesh_name = mesh.name().unwrap_or_default();
         let node_name = node.name().unwrap_or_default();
         if occludes(mesh_name) || (mesh_name.is_empty() && occludes(node_name)) {
             for primitive in mesh.primitives() {
-                collect_primitive(primitive, world, blob, triangles);
+                collect_primitive(primitive, blob, triangles);
             }
         }
     }
     for child in node.children() {
-        collect_node(child, world, blob, triangles);
+        collect_node(child, blob, triangles);
     }
 }
 
 fn collect_primitive(
     primitive: gltf::Primitive<'_>,
-    world: [[f32; 4]; 4],
     blob: &[u8],
     triangles: &mut Vec<[[f32; 3]; 3]>,
 ) {
@@ -343,9 +331,10 @@ fn collect_primitive(
     let Some(positions) = reader.read_positions() else {
         return;
     };
-    let positions = positions
-        .map(|position| transform_point(world, position))
-        .collect::<Vec<_>>();
+    // VRF writes Source-inch vertices and a glTF metres / Y-up node matrix.
+    // Demo ticks are Source-space, and Python concatenates local scene geometry,
+    // so line-of-sight must use the untransformed positions.
+    let positions = positions.collect::<Vec<_>>();
     if let Some(indices) = reader.read_indices() {
         let indices = indices.into_u32().collect::<Vec<_>>();
         for chunk in indices.chunks_exact(3) {
@@ -615,24 +604,6 @@ fn length(vector: [f32; 3]) -> f32 {
     dot(vector, vector).sqrt()
 }
 
-fn mul_mat(left: [[f32; 4]; 4], right: [[f32; 4]; 4]) -> [[f32; 4]; 4] {
-    let mut out = [[0.0; 4]; 4];
-    for column in 0..4 {
-        for row in 0..4 {
-            out[column][row] = (0..4).map(|k| left[k][row] * right[column][k]).sum();
-        }
-    }
-    out
-}
-
-fn transform_point(matrix: [[f32; 4]; 4], point: [f32; 3]) -> [f32; 3] {
-    [
-        matrix[0][0] * point[0] + matrix[1][0] * point[1] + matrix[2][0] * point[2] + matrix[3][0],
-        matrix[0][1] * point[0] + matrix[1][1] * point[1] + matrix[2][1] * point[2] + matrix[3][1],
-        matrix[0][2] * point[0] + matrix[1][2] * point[1] + matrix[2][2] * point[2] + matrix[3][2],
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -653,6 +624,57 @@ mod tests {
         let wall = Mesh::axis_aligned_box([1.0, 4.0, 100.0], [5.0, 0.0, 64.0]);
         let rows = [row(0.0, [10.0, 0.0, 0.0]), row(90.0, [0.0, 10.0, 0.0])];
         assert_eq!(visible_rows(&rows, &wall), vec![false, true]);
+    }
+
+    #[test]
+    fn vrf_export_matrix_keeps_source_space_visibility() {
+        let directory = std::env::temp_dir();
+        let path = directory.join("omarcs-vrf-source-space.glb");
+        std::fs::write(&path, vrf_style_wall_glb()).expect("write glb");
+        let mesh = load_glb(&path).expect("load glb");
+        std::fs::remove_file(&path).ok();
+        let rows = [row(0.0, [10.0, 0.0, 0.0]), row(90.0, [0.0, 10.0, 0.0])];
+        assert_eq!(visible_rows(&rows, &mesh), vec![false, true]);
+    }
+
+    fn vrf_style_wall_glb() -> Vec<u8> {
+        let positions: [f32; 12] = [
+            5.0, -2.0, 14.0, 5.0, 2.0, 14.0, 5.0, 2.0, 114.0, 5.0, -2.0, 114.0,
+        ];
+        let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
+        let mut bin = Vec::new();
+        for value in positions {
+            bin.extend_from_slice(&value.to_le_bytes());
+        }
+        for value in indices {
+            bin.extend_from_slice(&value.to_le_bytes());
+        }
+        let json = format!(
+            r#"{{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0]}}],"nodes":[{{"mesh":0,"matrix":[3.027916e-09,0,0.025399996,0,0.025399996,3.027916e-09,0,0,0,0.025399996,3.027916e-09,0,0,0,0,1]}}],"meshes":[{{"name":"physics_group_concrete","primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3","min":[5.0,-2.0,14.0],"max":[5.0,2.0,114.0]}},{{"bufferView":1,"componentType":5123,"count":6,"type":"SCALAR"}}],"bufferViews":[{{"buffer":0,"byteOffset":0,"byteLength":48}},{{"buffer":0,"byteOffset":48,"byteLength":12}}],"buffers":[{{"byteLength":{}}}]}}"#,
+            bin.len()
+        );
+        glb_bytes(json.into_bytes(), bin)
+    }
+
+    fn glb_bytes(mut json: Vec<u8>, mut bin: Vec<u8>) -> Vec<u8> {
+        while json.len() % 4 != 0 {
+            json.push(b' ');
+        }
+        while bin.len() % 4 != 0 {
+            bin.push(0);
+        }
+        let total = 12 + 8 + json.len() + 8 + bin.len();
+        let mut out = Vec::with_capacity(total);
+        out.extend_from_slice(b"glTF");
+        out.extend_from_slice(&2u32.to_le_bytes());
+        out.extend_from_slice(&(total as u32).to_le_bytes());
+        out.extend_from_slice(&(json.len() as u32).to_le_bytes());
+        out.extend_from_slice(b"JSON");
+        out.extend_from_slice(&json);
+        out.extend_from_slice(&(bin.len() as u32).to_le_bytes());
+        out.extend_from_slice(b"BIN\0");
+        out.extend_from_slice(&bin);
+        out
     }
 
     #[test]
