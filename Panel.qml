@@ -27,6 +27,7 @@ Panel {
     ? recent[Math.max(0, Math.min(selectedIndex, matchCount - 1))]
     : (report && report.latest ? report.latest : null)
   readonly property var stats: selectedMatch && selectedMatch.stats ? selectedMatch.stats : null
+  readonly property bool hasMechanics: !!stats && Number(stats.mechanicsEngagements || 0) > 0
   readonly property var trends: report && report.trends ? report.trends : ({ matches: 0, wins: 0, rating: 0, adr: 0, kast: 0 })
   readonly property string status: report ? String(report.status || "empty") : "empty"
   readonly property bool busy: status === "analyzing" || refreshProcess.running
@@ -42,6 +43,7 @@ Panel {
   }
 
   function formatNumber(raw, decimals) {
+    if (raw === null || raw === undefined || raw === "") return "—"
     var value = Number(raw)
     return isFinite(value) ? value.toFixed(decimals) : "—"
   }
@@ -311,6 +313,71 @@ Panel {
             text: root.stats
               ? "HS " + root.formatNumber(root.stats.headshotPercent, 0) + "%   ·   OPENINGS " + root.stats.openingKills + "–" + root.stats.openingDeaths + "   ·   TRADES " + root.stats.tradeKills + "   ·   UTIL " + root.stats.utilityDamage
               : ""
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          PanelSectionHeader {
+            visible: root.hasMechanics
+            width: parent.width
+            text: "AIM MECHANICS  ·  " + (root.stats.mechanicsQuality === "geometry" ? "MAP VISIBILITY" : "BETA")
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          Row {
+            visible: root.hasMechanics
+            width: parent.width
+            spacing: Style.space(6)
+
+            Repeater {
+              model: root.hasMechanics ? [
+                { label: "XHAIR", value: root.formatNumber(root.stats.crosshairPlacement, 1) + "°" },
+                { label: "TTD", value: root.formatNumber(root.stats.timeToDamageMs, 0) + "ms" },
+                { label: "SPOT ACC", value: root.formatNumber(root.stats.spottedAccuracy, 0) + "%" },
+                { label: "COUNTER", value: root.formatNumber(root.stats.counterStrafePercent, 0) + "%" }
+              ] : []
+
+              Rectangle {
+                required property var modelData
+                width: (content.width - Style.space(18)) / 4
+                height: Style.space(58)
+                radius: Style.cornerRadius
+                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
+
+                Column {
+                  anchors.centerIn: parent
+                  spacing: Style.space(2)
+                  Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: modelData.value
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.bold: true
+                    font.pixelSize: Style.font.body
+                  }
+                  Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: modelData.label
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+              }
+            }
+          }
+
+          Text {
+            visible: root.hasMechanics
+            width: parent.width
+            text: "FIRST SHOT " + root.formatNumber(root.stats.reactionTimeMs, 0) + "ms"
+              + "   ·   ADJUST H " + root.formatNumber(root.stats.horizontalAdjustment, 1) + "°"
+              + " / V " + root.formatNumber(root.stats.verticalAdjustment, 1) + "°"
+              + "   ·   " + root.stats.mechanicsEngagements + " DUELS"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

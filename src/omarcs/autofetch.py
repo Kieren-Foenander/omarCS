@@ -15,16 +15,15 @@ import threading
 import time
 import urllib.request
 import zipfile
-from io import BytesIO
-from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 from .config import data_home, state_home
-
 
 GSI_HOST = "127.0.0.1"
 GSI_PORT = 31982
@@ -37,6 +36,9 @@ HELPER_URL = (
     f"v{HELPER_VERSION}/boiler-writter-linux-{HELPER_VERSION}.zip"
 )
 HELPER_SHA256 = "f3c85acebb55a8c8eefb1334db4fce2cda397dc50eb8ecdb5664cedbc900f7ff"
+VRF_VERSION = "20.0"
+VRF_URL = f"https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/{VRF_VERSION}/cli-linux-x64.zip"
+VRF_SHA256 = "3e8af47cd6ce52e8068904f2aa1dda23c56a6b96a8310b25090f0711cda76a8a"
 REPLAY_URL = re.compile(rb"https?://replay\d+\.valve\.net/730/[^\x00\s\"]+?\.dem\.bz2")
 UNSAFE_PHASES = {"warmup", "live", "intermission"}
 
@@ -244,11 +246,7 @@ def decompress_demo(compressed: Path, allowed: Callable[[], bool]) -> Path:
 
 def parse_demo(demo: Path, allowed: Callable[[], bool]) -> None:
     command = [sys.executable, "-m", "omarcs.cli", "import", str(demo), "--quiet"]
-
-    def lower_priority() -> None:
-        os.nice(15)
-
-    process = subprocess.Popen(command, preexec_fn=lower_priority)
+    process = subprocess.Popen(command)
     while process.poll() is None:
         if not allowed():
             process.send_signal(signal.SIGTERM)
@@ -405,6 +403,32 @@ def install_helper() -> None:
             target.chmod(0o755 if name == "boiler-writter" else 0o644)
 
 
+def install_vrf() -> None:
+    root = data_home() / "omarcs/vrf"
+    root.mkdir(parents=True, exist_ok=True)
+    marker = root / ".version"
+    required = ("Source2Viewer-CLI", "libSkiaSharp.so", "libspirv-cross.so")
+    if (
+        marker.exists()
+        and marker.read_text(encoding="utf-8").strip() == VRF_VERSION
+        and all((root / name).exists() for name in required)
+    ):
+        return
+    with urllib.request.urlopen(VRF_URL, timeout=120) as response:
+        archive = response.read()
+    if hashlib.sha256(archive).hexdigest() != VRF_SHA256:
+        raise RuntimeError("Downloaded map geometry helper failed its SHA-256 check")
+    with zipfile.ZipFile(BytesIO(archive)) as bundle:
+        members = {Path(name).name: name for name in bundle.namelist()}
+        for name in required:
+            source = bundle.open(members[name])
+            target = root / name
+            with source, target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            target.chmod(0o755 if name == "Source2Viewer-CLI" else 0o644)
+    marker.write_text(VRF_VERSION + "\n", encoding="utf-8")
+
+
 def install_text_file(path: Path, content: str) -> None:
     if path.exists() and path.read_text(encoding="utf-8", errors="replace") != content:
         backup = runtime_root() / "backups"
@@ -417,6 +441,7 @@ def install_text_file(path: Path, content: str) -> None:
 
 def setup_auto(seed: bool = True) -> None:
     install_helper()
+    install_vrf()
     gsi = steam_gsi_path()
     gsi_content = (
         '"omarCS"\n'

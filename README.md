@@ -12,6 +12,8 @@ omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Co
 - Browsable five-match popup and ten-match averages
 - Automatic retrieval and parsing of new Valve Premier/Competitive demos
 - Automatic scanning of `~/Downloads`, `~/.local/share/omarcs/demos`, and the local CS2 folder
+- Map-aware crosshair correction, first-shot time, time-to-damage, spotted
+  accuracy, and proper counter-strafing
 
 All demos and derived data stay on this computer.
 
@@ -71,6 +73,15 @@ warmup, live play, or intermission. The user service also uses idle I/O
 scheduling, a nice value of 10, and low systemd CPU/I/O weights. Partial
 downloads resume later. Valve currently exposes the latest eight
 Premier/Competitive replays; FACEIT is not yet automatic.
+
+Aim mechanics use collision geometry from the locally installed CS2 map to
+reconstruct when an enemy enters your field of view. Crosshair placement is the
+median view-angle correction from first visibility to first damage.
+Time-to-damage excludes engagements lasting one second or longer;
+counter-strafing counts uncrouched rifle shots below 34% of that weapon's
+maximum movement speed. Static geometry cannot perfectly model smoke edges or
+moving props, so trends across several matches are more meaningful than a
+single duel.
 
 ## Optional configuration
 

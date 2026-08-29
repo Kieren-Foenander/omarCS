@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .mechanics import CS2_TICKS_PER_SECOND, calculate_mechanics
+
+ANALYSIS_VERSION = 2
+
 
 def value(row: dict[str, Any], *names: str, default: Any = None) -> Any:
     for name in names:
@@ -123,7 +127,7 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
     kill_rows = [kill for kill in rows(getattr(demo, "kills", None)) if is_enemy_kill(kill)]
     damage_rows = rows(getattr(demo, "damages", None))
     rounds_rows = rows(getattr(demo, "rounds", None))
-    tickrate = int(getattr(demo, "tickrate", 128) or 128)
+    tickrate = CS2_TICKS_PER_SECOND
     traded_deaths, trade_kills = trade_flags(kill_rows, tickrate)
 
     kills = sum(string_id(value(row, "attacker_steamid", "attacker_steam_id")) == steam_id for row in kill_rows)
@@ -248,11 +252,24 @@ def calculate_player_metrics(demo: Any, steam_id: str) -> dict[str, Any]:
         "roundsFor": rounds_for,
         "roundsAgainst": rounds_against,
         "result": result,
+        **calculate_mechanics(demo, steam_id),
     }
 
 
 def coaching_insights(stats: dict[str, Any]) -> list[str]:
     insights: list[str] = []
+    if stats.get("mechanicsEngagements", 0) >= 3 and (stats.get("crosshairPlacement") or 0) > 10:
+        insights.append(
+            f"Crosshair correction averaged {stats['crosshairPlacement']:.1f}°; pre-aim closer to likely head positions."
+        )
+    if stats.get("mechanicsEngagements", 0) >= 3 and (stats.get("timeToDamageMs") or 0) > 650:
+        insights.append(
+            f"Time to damage was {stats['timeToDamageMs']:.0f} ms; review whether placement or first-shot accuracy delayed fights."
+        )
+    if stats.get("counterStrafeShots", 0) >= 5 and (stats.get("counterStrafePercent") or 100) < 70:
+        insights.append(
+            f"Only {stats['counterStrafePercent']:.0f}% of rifle shots were fully settled; finish the counter-strafe before firing."
+        )
     if stats["openingDeaths"] > stats["openingKills"]:
         insights.append("Opening duels cost more rounds than they created; review your first-contact fights.")
     if stats["friendsFlashed"] > 1:
@@ -273,12 +290,24 @@ def analyze_demo(path: Path, player_selector: str, checksum: str | None = None) 
     events = list(demo.default_events)
     if "player_blind" not in events:
         events.append("player_blind")
-    demo.parse(events=events)
+    demo.parse(
+        events=events,
+        player_props=[
+            "pitch",
+            "yaw",
+            "duck_amount",
+            "velocity",
+            "approximate_spotted_by",
+            "active_weapon_name",
+            "shots_fired",
+        ],
+    )
     steam_id, player_name = resolve_player(demo, player_selector)
     stats = calculate_player_metrics(demo, steam_id)
     digest = checksum or demo_checksum(path)
     played_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
     return {
+        "analysisVersion": ANALYSIS_VERSION,
         "id": digest[:16],
         "checksum": digest,
         "path": str(path.resolve()),

@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .analysis import analyze_demo, demo_checksum
 from .config import detect_active_steam_id, load_settings
 from .storage import Store
 
@@ -23,6 +22,8 @@ def demo_files(paths: list[Path]) -> list[Path]:
 
 
 def import_paths(paths: list[Path], player: str | None, quiet: bool = False) -> int:
+    from .analysis import ANALYSIS_VERSION, analyze_demo, demo_checksum
+
     settings = load_settings()
     selector = player or settings.player or detect_active_steam_id()
     store = Store()
@@ -45,7 +46,7 @@ def import_paths(paths: list[Path], player: str | None, quiet: bool = False) -> 
     for path in files:
         try:
             checksum = demo_checksum(path)
-            if store.has_checksum(checksum):
+            if store.has_checksum(checksum, ANALYSIS_VERSION):
                 continue
             if not quiet:
                 print(f"Analyzing {path.name}…")

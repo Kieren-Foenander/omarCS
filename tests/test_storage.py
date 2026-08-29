@@ -29,3 +29,14 @@ def test_publishes_latest_and_trends(tmp_path) -> None:
     assert summary["trends"]["rating"] == 1.0
     assert (tmp_path / "summary.json").exists()
 
+
+def test_reanalyzes_matches_when_analysis_version_changes(tmp_path) -> None:
+    store = Store(tmp_path)
+    match = sample_match("a", "2026-01-01T00:00:00+00:00", "W", 1.1)
+    store.save_match(match)
+    assert store.has_checksum(match["checksum"], 1)
+    assert not store.has_checksum(match["checksum"], 2)
+    match["analysisVersion"] = 2
+    store.save_match(match)
+    assert store.has_checksum(match["checksum"], 2)
+    store.close()

@@ -44,9 +44,15 @@ class Store:
     def close(self) -> None:
         self.connection.close()
 
-    def has_checksum(self, checksum: str) -> bool:
-        row = self.connection.execute("SELECT 1 FROM matches WHERE checksum = ?", (checksum,)).fetchone()
-        return row is not None
+    def has_checksum(self, checksum: str, analysis_version: int = 1) -> bool:
+        row = self.connection.execute("SELECT payload FROM matches WHERE checksum = ?", (checksum,)).fetchone()
+        if row is None:
+            return False
+        try:
+            payload = json.loads(row["payload"])
+            return int(payload.get("analysisVersion", 1)) >= analysis_version
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
 
     def save_match(self, match: dict[str, Any]) -> None:
         stats = match["stats"]

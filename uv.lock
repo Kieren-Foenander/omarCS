@@ -298,6 +298,28 @@ wheels = [
 ]
 
 [[package]]
+name = "embreex"
+version = "2.17.7.post7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/01/ed299e72f62731be03c383ee4e13191d28afd7e73a8a30012e5b12c61916/embreex-2.17.7.post7-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:b10cddba4cc294122e5a76c6df8b042fcb291b352220ecc72b2d9559fc45c48b", size = 10738000, upload-time = "2025-10-22T20:07:29.599Z" },
+    { url = "https://files.pythonhosted.org/packages/75/c9/8f7ee075d31f51c9e2c50a1a380cf4cbb5c1d56c55a3d26dc098cf9bef5a/embreex-2.17.7.post7-cp312-cp312-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e069c7140ab8d4a3712fcc902dafda31e36c5aaa5fdc3fe5ba0f0e613cbe1876", size = 17235388, upload-time = "2025-10-22T20:07:32.121Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/47/483c92bd50a334b81d94f7a6a224080be0e20705a1d76bfb75935ee1ce8c/embreex-2.17.7.post7-cp312-cp312-win_amd64.whl", hash = "sha256:239e34700d821a55365565bcb2c9275237bc32984d0e518e04e106278978911e", size = 13466148, upload-time = "2025-10-22T20:07:34.334Z" },
+    { url = "https://files.pythonhosted.org/packages/99/1a/e6d80ab0104ba947e1e5a0c5251021a4bf374cfe3b0d88e2be62b150170d/embreex-2.17.7.post7-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:377888d4f61b6d523e91b835aea3bd74193bd2b5fee9212adfe5fa0d5b80671b", size = 10734165, upload-time = "2025-10-22T20:07:36.707Z" },
+    { url = "https://files.pythonhosted.org/packages/59/c7/410b62268fa98d9f0f2f5ab14b6e718e308a5f30dc4b9c2dcb0223d98ac8/embreex-2.17.7.post7-cp313-cp313-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c947025954a43a17a51d17be5ddbcfd1881ec5d0ea443bdf0ac4ac67e8e15e15", size = 17225042, upload-time = "2025-10-22T20:07:38.833Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/17/cf4bfc4f30cdaa9b64670e223d55949aae4f3d0005a8ba6559c7327477ac/embreex-2.17.7.post7-cp313-cp313-win_amd64.whl", hash = "sha256:c0f125c0517a4200a3f5d1979920704b924ec1ff6d6d0d826238216e40bf65fe", size = 13463316, upload-time = "2025-10-22T20:07:42.26Z" },
+    { url = "https://files.pythonhosted.org/packages/47/30/dd0be2d0fec7ce0d032e8ebdfe6c1b3c7a70fb44821d32ff44ce5d0a389e/embreex-2.17.7.post7-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:a8f8ba00c1270976f57bb608be623c64ec46d1f60a9b04dbdee2acc2b82b6224", size = 10734492, upload-time = "2025-10-22T20:07:45.211Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/be/ded6ef0197a112ec47a58550ad9471f879c2856169ebd3986d3e4ce1ec4f/embreex-2.17.7.post7-cp314-cp314-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a34feb5c30bebddf71a94c5b529646542e4209c0879c2644615744f1f407a60f", size = 17216580, upload-time = "2025-10-22T20:07:47.357Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/29/c814b7696fed98e08d524c856d92c36356e32ba80cb5edf419f2031025a4/embreex-2.17.7.post7-cp314-cp314-win_amd64.whl", hash = "sha256:13b2ecbaeb016a64d278835960223e78fd9266f63f74f1cbc4d427335994c4b5", size = 13755202, upload-time = "2025-10-22T20:07:49.909Z" },
+    { url = "https://files.pythonhosted.org/packages/32/2c/34bdcd616daeb1a7066d28af419ef5728bd28b74c1b4c5658c4945809bdf/embreex-2.17.7.post7-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:2341a479cb996e2e4e36cabc499c61d81d8e67acc8f2b3c1eb1628ccacde88a1", size = 10742295, upload-time = "2025-10-22T20:07:51.997Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/5c/940683357ad9aa52ecb0fc040e8f4422bcd2fd7596654f5ccfe7f2c43b44/embreex-2.17.7.post7-cp314-cp314t-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8f943bb39ea6494e20632ff02613c7cff730a8349ceb572ae4742b2201f2de2f", size = 17364382, upload-time = "2025-10-22T20:07:54.373Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/c3/d6d020ecb8701aba43fe210d038459dfc8e1e3d3baf9365163362f50c0ec/embreex-2.17.7.post7-cp314-cp314t-win_amd64.whl", hash = "sha256:29c95e5f6487db6a4f71fcce80d8b1f318e454b936e6318babcd478ae68e0acf", size = 13771100, upload-time = "2025-10-22T20:07:58.099Z" },
+]
+
+[[package]]
 name = "fonttools"
 version = "4.63.0"
 source = { registry = "https://pypi.org/simple" }
@@ -621,6 +643,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "awpy" },
+    { name = "embreex" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "trimesh" },
 ]
 
 [package.dev-dependencies]
@@ -629,7 +655,13 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "awpy", specifier = "==2.0.2" }]
+requires-dist = [
+    { name = "awpy", specifier = "==2.0.2" },
+    { name = "embreex", specifier = ">=2.17,<3" },
+    { name = "numpy", specifier = ">=2,<3" },
+    { name = "polars", specifier = ">=1.26,<2" },
+    { name = "trimesh", specifier = ">=4.8,<5" },
+]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.3,<9" }]
@@ -984,6 +1016,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/21/3b/6c24bec5be5e743ffd99576daa5cc077722fc7d5bbc00bd133fa0c698dc6/tqdm-4.70.0.tar.gz", hash = "sha256:55b0b0dbd97462d06ebee91e4dac24ed4d4702be82b24f07e6c1d27e08cea220", size = 795438, upload-time = "2026-07-27T11:33:15.271Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f9/1c/01bfd571a64e7f270e6bab5e33777debe0edc56759233ce84f27dec92d14/tqdm-4.70.0-py3-none-any.whl", hash = "sha256:7f585706bfddbdebf89daac705b2dfcc16890130727d3197ca62c732b4310953", size = 80184, upload-time = "2026-07-27T11:33:13.167Z" },
+]
+
+[[package]]
+name = "trimesh"
+version = "4.12.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/37/5cb90f04990260d2caceb6093560c6cefafca1ec522c1e43be01ca658244/trimesh-4.12.2.tar.gz", hash = "sha256:c8ca31571ac00b112e4e160e66a2d4c3491df321f056bd33806be0485d1af9d9", size = 842220, upload-time = "2026-05-01T00:57:43.333Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl", hash = "sha256:b5b5afa63c5272345f2858f7676bc8c217dc8a89f4fadf6193fe10a81b5ff2aa", size = 741043, upload-time = "2026-05-01T00:57:40.763Z" },
 ]
 
 [[package]]
