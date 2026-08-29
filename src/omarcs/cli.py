@@ -91,6 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def enable_autofetch_service() -> None:
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "--user", "enable", "--now", "omarcs-autofetch.service"], check=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "import":
@@ -107,8 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         from .autofetch import setup_auto
 
         setup_auto()
-        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-        subprocess.run(["systemctl", "--user", "enable", "--now", "omarcs-autofetch.service"], check=True)
+        enable_autofetch_service()
         print("Automatic match fetching is enabled.")
         return 0
     if args.command == "bootstrap":
@@ -117,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         from .autofetch import setup_auto
 
         setup_auto()
+        enable_autofetch_service()
         settings = load_settings()
         return import_paths(list(settings.import_paths), None, quiet=True)
     if args.command == "auto-run":

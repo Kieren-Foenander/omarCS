@@ -3,7 +3,7 @@
   "id": "omarcs.stats",
   "name": "omarCS",
   "version": "0.2.0",
-  "author": "Kieren",
+  "author": "Kieren Foenander",
   "license": "MIT",
   "description": "Recent CS2 match stats and local coaching insights.",
   "kinds": ["bar-widget"],
