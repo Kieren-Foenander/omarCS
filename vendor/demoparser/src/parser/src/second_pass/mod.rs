@@ -1,4 +1,5 @@
 pub mod collect_data;
+pub mod compact;
 pub mod decoder;
 pub mod entities;
 pub mod game_events;

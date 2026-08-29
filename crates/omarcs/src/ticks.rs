@@ -7,6 +7,7 @@ use parser::first_pass::prop_controller::{
 };
 use parser::maps::FRIENDLY_NAMES_MAPPING;
 use parser::parse_demo::DemoOutput;
+use parser::second_pass::compact::CompactTicks;
 use parser::second_pass::variants::{PropColumn, VarVec};
 
 use crate::match_facts::{PlayerId, RoundFact, Side, round_index_for_tick};
@@ -154,6 +155,58 @@ impl TickObservations {
                     shots_fired: shots.i32_at(index).unwrap_or(0),
                     weapon: weapons.str_at(index).unwrap_or(""),
                     spotted_by: spotted.u64s_at(index),
+                },
+            );
+        }
+        observations
+    }
+
+    pub fn from_compact(
+        compact: &CompactTicks,
+        rounds: &[RoundFact],
+        players: &mut BTreeMap<PlayerId, String>,
+    ) -> Self {
+        let mut observations = Self::empty();
+        observations.reserve(compact.len());
+        let mut intern = AHashMap::new();
+
+        for index in 0..compact.len() {
+            let steam_id = compact.steamid[index];
+            if steam_id == 0 {
+                continue;
+            }
+            let side = Side::from_team_num(compact.team_num[index]);
+            if side == Side::Unknown {
+                continue;
+            }
+            let tick = compact.tick[index];
+            let Some(round_index) = round_index_for_tick(rounds, tick) else {
+                continue;
+            };
+            let player = PlayerId(steam_id);
+            if let Some(name) = compact.names.get(&steam_id).filter(|name| !name.is_empty()) {
+                players.entry(player).or_insert_with(|| name.to_owned());
+            }
+            observations.push(
+                &mut intern,
+                TickRow {
+                    round_index: round_index as u16,
+                    player,
+                    side,
+                    tick,
+                    health: i32::from(compact.health[index]),
+                    origin: [
+                        compact.origin_x[index],
+                        compact.origin_y[index],
+                        compact.origin_z[index],
+                    ],
+                    pitch: compact.pitch[index],
+                    yaw: compact.yaw[index],
+                    duck_amount: compact.duck_amount[index],
+                    velocity: compact.velocity[index],
+                    shots_fired: i32::from(compact.shots_fired[index]),
+                    weapon: compact.weapon_name(index),
+                    spotted_by: compact.spotted_by(index),
                 },
             );
         }
@@ -513,6 +566,7 @@ fn column_id(output: &DemoOutput, name: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parser::second_pass::compact::CompactTickRow;
 
     const PLAYER: PlayerId = PlayerId(76_561_198_000_000_001);
     const TEAMMATE: PlayerId = PlayerId(76_561_198_000_000_002);
@@ -609,5 +663,83 @@ mod tests {
         let sides = observations.majority_sides(PLAYER);
         assert_eq!(sides.get(&0), Some(&Side::CounterTerrorist));
         assert_eq!(sides.get(&1), Some(&Side::Terrorist));
+    }
+
+    #[test]
+    fn from_compact_drops_spectators_and_out_of_round_ticks() {
+        let mut compact = CompactTicks::default();
+        compact.push(CompactTickRow {
+            tick: 50,
+            steamid: PLAYER.0,
+            team_num: 3,
+            health: 100,
+            origin: [1.0, 2.0, 3.0],
+            pitch: 4.0,
+            yaw: 5.0,
+            duck_amount: 0.25,
+            velocity: 80.0,
+            shots_fired: 3,
+            weapon: "ak47",
+            spotted_by: &[ENEMY.0, 0],
+            name: Some("Kieren"),
+        });
+        compact.push(CompactTickRow {
+            tick: 40,
+            steamid: 0,
+            team_num: 2,
+            health: 100,
+            origin: [0.0, 0.0, 0.0],
+            pitch: 0.0,
+            yaw: 0.0,
+            duck_amount: 0.0,
+            velocity: 0.0,
+            shots_fired: 0,
+            weapon: "ak47",
+            spotted_by: &[],
+            name: None,
+        });
+        compact.push(CompactTickRow {
+            tick: 800,
+            steamid: PLAYER.0,
+            team_num: 3,
+            health: 100,
+            origin: [0.0, 0.0, 0.0],
+            pitch: 0.0,
+            yaw: 0.0,
+            duck_amount: 0.0,
+            velocity: 0.0,
+            shots_fired: 0,
+            weapon: "m4a1",
+            spotted_by: &[],
+            name: None,
+        });
+        compact.push(CompactTickRow {
+            tick: 960,
+            steamid: TEAMMATE.0,
+            team_num: 2,
+            health: 90,
+            origin: [9.0, 8.0, 7.0],
+            pitch: 1.0,
+            yaw: 2.0,
+            duck_amount: 0.0,
+            velocity: 10.0,
+            shots_fired: 1,
+            weapon: "m4a1",
+            spotted_by: &[PLAYER.0],
+            name: Some("Teammate"),
+        });
+
+        let mut players = BTreeMap::new();
+        let observations = TickObservations::from_compact(&compact, &rounds(), &mut players);
+
+        assert_eq!(observations.len(), 2);
+        assert_eq!(observations.player(0), PLAYER);
+        assert_eq!(observations.round_index(0), 0);
+        assert_eq!(observations.round_index(1), 1);
+        assert_eq!(observations.weapon(0), "ak47");
+        assert_eq!(observations.weapon(1), "m4a1");
+        assert_eq!(observations.spotted_by(0), &[ENEMY]);
+        assert_eq!(players.get(&PLAYER).map(String::as_str), Some("Kieren"));
+        assert_eq!(players.get(&TEAMMATE).map(String::as_str), Some("Teammate"));
     }
 }

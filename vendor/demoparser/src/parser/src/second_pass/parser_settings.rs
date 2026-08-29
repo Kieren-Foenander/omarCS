@@ -7,6 +7,7 @@ use crate::first_pass::stringtables::StringTable;
 use crate::first_pass::stringtables::UserInfo;
 use crate::maps::BUTTONMAP;
 use crate::second_pass::collect_data::ProjectileRecord;
+use crate::second_pass::compact::CompactTicks;
 use crate::second_pass::decoder::QfMapper;
 use crate::second_pass::entities::Entity;
 use crate::second_pass::entities::PlayerMetaData;
@@ -80,6 +81,10 @@ pub struct SecondPassParser<'a> {
     pub parse_usercmd: bool,
     pub usercmd_baselines: AHashMap<i32, CsgoUserCmdPb>,
     pub list_props: bool,
+    pub compact_player_ticks: bool,
+    pub compact_ticks: CompactTicks,
+    pub last_origin: AHashMap<u64, [f32; 3]>,
+    pub prev_origin: AHashMap<u64, [f32; 3]>,
 }
 #[derive(Debug, Clone)]
 pub struct Teams {
@@ -160,6 +165,7 @@ impl<'a> SecondPassParser<'a> {
             df_per_player: self.df_per_player,
             entities: self.entities,
             last_tick: self.tick,
+            compact_ticks: self.compact_ticks,
         }
     }
     pub fn new(
@@ -232,6 +238,10 @@ impl<'a> SecondPassParser<'a> {
             huffman_lookup_table: &first_pass_output.settings.huffman_lookup_table,
             header: HashMap::default(),
             list_props: first_pass_output.list_props,
+            compact_player_ticks: first_pass_output.settings.compact_player_ticks,
+            compact_ticks: CompactTicks::default(),
+            last_origin: AHashMap::default(),
+            prev_origin: AHashMap::default(),
         })
     }
 }

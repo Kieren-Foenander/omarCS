@@ -64,6 +64,7 @@ fn settings<'a>(huf: &'a Vec<(u8, u8)>) -> ParserInputs<'a> {
         order_by_steamid: false,
         wanted_prop_states: AHashMap::default(),
         fallback_bytes: None,
+        compact_player_ticks: false,
     }
 }
 

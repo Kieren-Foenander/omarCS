@@ -39,6 +39,7 @@ fn main() {
         fallback_bytes: None,
         wanted_prop_states: AHashMap::default(),
         order_by_steamid: false,
+        compact_player_ticks: false,
     };
     let mut ds = Parser::new(settings, parser::parse_demo::ParsingMode::Normal);
     let file = File::open(path_to_demo).unwrap();

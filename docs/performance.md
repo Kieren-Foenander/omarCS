@@ -12,7 +12,7 @@ omarCS optimizes elapsed time from discovering a new Demo to publishing its Matc
 - Local `source2-demo` 0.5.8 comparison: 0.368 seconds median with its `unsafe` feature, entity state, all events, and per-tick player scans
 - Vendored omarCS-focused parse: approximately 0.108 seconds median for 579,700 tick rows and 3,279 requested events when only special parser columns were collected
 - The same parse with friendly player properties resolved (health, team, spotted-by, weapon, duck, shots): approximately 0.14 seconds, then compacted to 565,963 tick observations
-- Native parse plus core player statistics: approximately 0.13 seconds wall time on the same fixture before tick compaction; compacting observations is now part of the Match Facts path
+- Native Match Facts now accumulate those compact observations during the second pass instead of building the generic dataframe and copying it afterwards. `omarcs-native probe` still materialises the dataframe so the fixture checksum can be compared independently
 
 These wall-clock figures describe the development machine and are not portable CI assertions. Regression gates should compare revisions on the same machine and fixture.
 
@@ -49,9 +49,7 @@ plus ray-mesh tests against cached CS2 physics GLBs, with
 `mechanicsQuality: "geometry"` when a mesh loads. Without a mesh the native
 path uses spotted-by observations the same way Python does.
 
-The compact adapter reads the parser dataframe once, then drops spectators,
-steamid 0, and ticks outside reconstructed rounds. Weapons are interned and
-spotted-by lists are flattened. In-parser accumulation is still future work.
+The compact adapter still exists as a fallback when a parse materialises the generic dataframe. Match Facts now accumulate compact player ticks during the second pass: the parser writes interned weapons and flattened spotted-by lists instead of Option-filled columns, then round assignment drops spectators, steamid 0, and ticks outside reconstructed rounds. `omarcs-native probe` still uses the generic dataframe so the upstream fixture checksum can be compared independently of Match Facts output construction.
 
 Set `OMARCS_DEMO_FIXTURE` to a compatible local Demo when running real-demo parity tests. Large Demo files are deliberately not committed to this repository.
 

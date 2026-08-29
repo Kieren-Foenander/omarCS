@@ -9,6 +9,7 @@ use crate::first_pass::read_bits::DemoParserError;
 use crate::first_pass::stringtables::parse_userinfo;
 use crate::maps::demo_cmd_type_from_int;
 use crate::second_pass::collect_data::ProjectileRecord;
+use crate::second_pass::compact::CompactTicks;
 use crate::second_pass::entities::Entity;
 use crate::second_pass::game_events::GameEvent;
 use crate::second_pass::parser_settings::SecondPassParser;
@@ -72,6 +73,7 @@ pub struct SecondPassOutput {
     pub df_per_player: AHashMap<u64, AHashMap<u32, PropColumn>>,
     pub entities: Vec<Option<Entity>>,
     pub last_tick: i32,
+    pub compact_ticks: CompactTicks,
 }
 impl<'a> SecondPassParser<'a> {
     pub fn start(&mut self, demo_bytes: &'a [u8]) -> Result<(), DemoParserError> {

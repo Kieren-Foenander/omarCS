@@ -5,6 +5,7 @@ use crate::first_pass::prop_controller::*;
 use crate::first_pass::read_bits::DemoParserError;
 use crate::maps::BUTTONMAP;
 use crate::maps::PLAYER_COLOR;
+use crate::second_pass::compact::CompactTickRow;
 use crate::second_pass::entities::EntityType;
 use crate::second_pass::parser_settings::SecondPassParser;
 use crate::second_pass::variants::PropColumn;
@@ -57,6 +58,14 @@ pub enum CoordinateAxis {
 
 impl<'a> SecondPassParser<'a> {
     pub fn collect_entities(&mut self) {
+        if self.compact_player_ticks {
+            if self.parse_projectiles {
+                self.collect_projectiles();
+                return;
+            }
+            self.collect_compact_player_ticks();
+            return;
+        }
         if !self.prop_controller.event_with_velocity {
             if !self.wanted_ticks.contains(&self.tick) && self.wanted_ticks.len() != 0 || self.wanted_events.len() != 0 {
                 return;
@@ -107,6 +116,82 @@ impl<'a> SecondPassParser<'a> {
                     let val = self.find_prop_with_collect_cache(prop_info, entity_id, player, &mut velocity_indicies, &mut button_mask);
                     self.output.entry(prop_info.id).or_insert_with(PropColumn::new).push(val);
                 }
+            }
+        }
+    }
+
+    fn collect_compact_player_ticks(&mut self) {
+        let health_id = self.prop_controller.name_to_id.get("CCSPlayerPawn.m_iHealth").copied();
+        let duck_id = self
+            .prop_controller
+            .name_to_id
+            .get("CCSPlayerPawn.CCSPlayer_MovementServices.m_flDuckAmount")
+            .copied();
+        let shots_id = self.prop_controller.name_to_id.get("CCSPlayerPawn.m_iShotsFired").copied();
+        let spotted_id = self.prop_controller.name_to_id.get("CCSPlayerPawn.m_bSpottedByMask").copied();
+        let team_id = self.prop_controller.special_ids.player_team_pointer;
+        let tick = self.tick;
+        let entity_ids: Vec<i32> = self.players.keys().copied().collect();
+
+        for entity_id in entity_ids {
+            let player_steamid = self.players.get(&entity_id).and_then(|player| player.steamid).unwrap_or(0);
+            if !self.wanted_players.is_empty() && !self.wanted_players.contains(&player_steamid) {
+                continue;
+            }
+
+            let team_num = variant_u32(team_id.and_then(|id| self.get_prop_from_ent(&id, &entity_id).ok()));
+            let health = variant_i32(health_id.and_then(|id| self.get_prop_from_ent(&id, &entity_id).ok()));
+            let origin = [
+                variant_f32(self.collect_cell_coordinate_player(CoordinateAxis::X, &entity_id).ok()),
+                variant_f32(self.collect_cell_coordinate_player(CoordinateAxis::Y, &entity_id).ok()),
+                variant_f32(self.collect_cell_coordinate_player(CoordinateAxis::Z, &entity_id).ok()),
+            ];
+            let pitch = variant_f32(self.find_pitch_or_yaw(&entity_id, 0).ok());
+            let yaw = variant_f32(self.find_pitch_or_yaw(&entity_id, 1).ok());
+            let duck_amount = variant_f32(duck_id.and_then(|id| self.get_prop_from_ent(&id, &entity_id).ok()));
+            let shots_fired = variant_i32(shots_id.and_then(|id| self.get_prop_from_ent(&id, &entity_id).ok()));
+            let weapon = match self.find_weapon_name(&entity_id) {
+                Ok(Variant::String(name)) => name,
+                _ => String::new(),
+            };
+            let spotted = match spotted_id.and_then(|id| self.get_prop_from_ent(&id, &entity_id).ok()) {
+                Some(Variant::U32(mask)) => self.steamids_from_mask(mask),
+                _ => Vec::new(),
+            };
+            let last = self.last_origin.get(&player_steamid).copied();
+            let prev = self.prev_origin.get(&player_steamid).copied();
+            let velocity = match (last, prev) {
+                (Some(last), Some(prev)) => {
+                    let dx = (last[0] - prev[0]) * 64.0;
+                    let dy = (last[1] - prev[1]) * 64.0;
+                    (dx * dx + dy * dy).sqrt()
+                }
+                _ => 0.0,
+            };
+            let name = self
+                .players
+                .get(&entity_id)
+                .and_then(|player| player.name.as_deref())
+                .filter(|name| !name.is_empty())
+                .map(|name| name.to_owned());
+
+            self.compact_ticks.push(CompactTickRow {
+                tick,
+                steamid: player_steamid,
+                team_num,
+                health,
+                origin,
+                pitch,
+                yaw,
+                duck_amount,
+                velocity,
+                shots_fired,
+                weapon: &weapon,
+                spotted_by: &spotted,
+                name: name.as_deref(),
+            });
+            if let Some(last) = self.last_origin.insert(player_steamid, origin) {
+                self.prev_origin.insert(player_steamid, last);
             }
         }
     }
@@ -1212,6 +1297,35 @@ impl<'a> SecondPassParser<'a> {
             }
         }
         None
+    }
+}
+
+fn variant_i32(value: Option<Variant>) -> i32 {
+    match value {
+        Some(Variant::I32(value)) => value,
+        Some(Variant::U32(value)) => i32::try_from(value).unwrap_or(0),
+        Some(Variant::U64(value)) => i32::try_from(value).unwrap_or(0),
+        Some(Variant::F32(value)) => value as i32,
+        Some(Variant::Bool(value)) => i32::from(value),
+        _ => 0,
+    }
+}
+
+fn variant_u32(value: Option<Variant>) -> u32 {
+    match value {
+        Some(Variant::U32(value)) => value,
+        Some(Variant::I32(value)) => u32::try_from(value).unwrap_or(0),
+        Some(Variant::U64(value)) => u32::try_from(value).unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn variant_f32(value: Option<Variant>) -> f32 {
+    match value {
+        Some(Variant::F32(value)) => value,
+        Some(Variant::I32(value)) => value as f32,
+        Some(Variant::U32(value)) => value as f32,
+        _ => 0.0,
     }
 }
 

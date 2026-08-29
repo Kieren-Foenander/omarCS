@@ -59,6 +59,14 @@ pub struct ParsedDemo {
 }
 
 pub fn parse(path: &Path) -> Result<ParsedDemo> {
+    parse_with(path, true)
+}
+
+fn parse_generic(path: &Path) -> Result<ParsedDemo> {
+    parse_with(path, false)
+}
+
+fn parse_with(path: &Path, compact_player_ticks: bool) -> Result<ParsedDemo> {
     let file = File::open(path).with_context(|| format!("opening {}", path.display()))?;
     let mmap = unsafe { MmapOptions::new().map(&file) }
         .with_context(|| format!("mapping {}", path.display()))?;
@@ -81,6 +89,7 @@ pub fn parse(path: &Path) -> Result<ParsedDemo> {
         order_by_steamid: false,
         wanted_prop_states: AHashMap::default(),
         fallback_bytes: None,
+        compact_player_ticks,
     };
 
     let started = Instant::now();
@@ -96,7 +105,7 @@ pub fn parse(path: &Path) -> Result<ParsedDemo> {
 }
 
 pub fn probe(path: &Path) -> Result<ParserProbe> {
-    let parsed = parse(path)?;
+    let parsed = parse_generic(path)?;
     let output = parsed.output;
 
     let mut columns = output

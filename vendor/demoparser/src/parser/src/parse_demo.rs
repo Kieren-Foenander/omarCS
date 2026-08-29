@@ -5,6 +5,7 @@ use crate::first_pass::parser_settings::{FirstPassParser, ParserInputs};
 use crate::first_pass::prop_controller::{PropController, NAME_ID, STEAMID_ID, TICK_ID};
 use crate::first_pass::read_bits::DemoParserError;
 use crate::second_pass::collect_data::ProjectileRecord;
+use crate::second_pass::compact::CompactTicks;
 use crate::second_pass::game_events::{EventField, GameEvent};
 use crate::second_pass::parser::SecondPassOutput;
 use crate::second_pass::parser_settings::*;
@@ -43,6 +44,7 @@ pub struct DemoOutput {
     pub voice_data: Vec<(i32, CsvcMsgVoiceData)>,
     pub prop_controller: PropController,
     pub df_per_player: AHashMap<u64, AHashMap<u32, PropColumn>>,
+    pub compact_ticks: CompactTicks,
 }
 
 pub struct Parser<'a> {
@@ -361,6 +363,7 @@ impl<'a> Parser<'a> {
                 voice_data: output.voice_data,
                 df_per_player: pp,
                 uniq_prop_names: all_prop_names,
+                compact_ticks: output.compact_ticks,
             };
         }
 
@@ -377,6 +380,7 @@ impl<'a> Parser<'a> {
         let mut convars = AHashMap::default();
         let mut projectiles = Vec::new();
         let mut voice_data = Vec::new();
+        let mut compact_ticks = CompactTicks::default();
 
         for output in outputs {
             dfs.push(output.df);
@@ -402,6 +406,7 @@ impl<'a> Parser<'a> {
             convars.extend(output.convars);
             projectiles.extend(output.projectiles);
             voice_data.extend(output.voice_data);
+            compact_ticks.extend(output.compact_ticks);
         }
 
         let all_dfs_combined = self.combine_dfs(dfs, false);
@@ -437,6 +442,7 @@ impl<'a> Parser<'a> {
             voice_data,
             df_per_player: pp,
             uniq_prop_names: all_prop_names,
+            compact_ticks,
         }
     }
 

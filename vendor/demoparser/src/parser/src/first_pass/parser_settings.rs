@@ -40,6 +40,8 @@ pub struct ParserInputs<'a> {
     pub order_by_steamid: bool,
     pub list_props: bool,
     pub fallback_bytes: Option<Vec<u8>>,
+    /// When true, second pass writes compact player ticks instead of the generic dataframe.
+    pub compact_player_ticks: bool,
 }
 
 pub struct FirstPassParser<'a> {

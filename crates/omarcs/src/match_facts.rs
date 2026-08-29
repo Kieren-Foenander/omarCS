@@ -170,12 +170,6 @@ impl MatchFacts {
             .and_then(|header| header.get("map_name"))
             .cloned()
             .unwrap_or_default();
-        let tick_rows = output
-            .df
-            .values()
-            .map(|column| column.len())
-            .max()
-            .unwrap_or(0);
         let mut players = BTreeMap::<PlayerId, String>::new();
         let mut round_markers = Vec::new();
         let mut kills = Vec::new();
@@ -246,7 +240,21 @@ impl MatchFacts {
 
         round_markers.sort_by_key(|marker| marker.tick);
         let rounds = reconstruct_rounds(round_markers);
-        let ticks = TickObservations::from_demo(&output, &rounds, &mut players);
+        let tick_rows = if output.compact_ticks.is_empty() {
+            output
+                .df
+                .values()
+                .map(|column| column.len())
+                .max()
+                .unwrap_or(0)
+        } else {
+            output.compact_ticks.len()
+        };
+        let ticks = if output.compact_ticks.is_empty() {
+            TickObservations::from_demo(&output, &rounds, &mut players)
+        } else {
+            TickObservations::from_compact(&output.compact_ticks, &rounds, &mut players)
+        };
         let players = players
             .into_iter()
             .map(|(steam_id, name)| PlayerFact { steam_id, name })
