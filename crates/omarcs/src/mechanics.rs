@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::Serialize;
 
-use crate::match_facts::{MatchFacts, PlayerId, ShotFact, round_index_for_tick};
+use crate::geometry::{self, Mesh, VisibilityRow};
+use crate::match_facts::{
+    DamageFact, MatchFacts, PlayerId, RoundFact, ShotFact, round_index_for_tick,
+};
 use crate::ticks::TickObservations;
 
 const CS2_TICKS_PER_SECOND: i32 = 64;
@@ -66,7 +69,7 @@ pub fn empty() -> MechanicsMetrics {
     }
 }
 
-pub fn calculate(facts: &MatchFacts, player: PlayerId) -> MechanicsMetrics {
+pub fn calculate(facts: &MatchFacts, player: PlayerId, mesh: Option<&Mesh>) -> MechanicsMetrics {
     let mut metrics = empty();
     if facts.ticks.is_empty() {
         return metrics;
@@ -87,9 +90,25 @@ pub fn calculate(facts: &MatchFacts, player: PlayerId) -> MechanicsMetrics {
         })
         .collect::<Vec<_>>();
 
-    let (exposures, visible_ticks) = radar_exposures(&facts.ticks, player);
+    let shot_ticks = shots.iter().map(|shot| shot.tick).collect::<BTreeSet<_>>();
+    let (exposures, visible_ticks) = match mesh {
+        Some(mesh) => {
+            metrics.mechanics_quality = "geometry";
+            geometry_exposures(
+                &facts.ticks,
+                &facts.rounds,
+                player,
+                &damages,
+                &shot_ticks,
+                mesh,
+            )
+        }
+        None => {
+            metrics.mechanics_quality = "radar-beta";
+            radar_exposures(&facts.ticks, player)
+        }
+    };
     metrics.mechanics_exposures = exposures.len();
-    metrics.mechanics_quality = "radar-beta";
 
     let spotted_shots = shots
         .iter()
@@ -293,6 +312,139 @@ fn radar_exposures(ticks: &TickObservations, player: PlayerId) -> (Vec<Exposure>
     (exposures, visible_ticks)
 }
 
+fn geometry_exposures(
+    ticks: &TickObservations,
+    rounds: &[RoundFact],
+    player: PlayerId,
+    damages: &[&DamageFact],
+    shot_ticks: &BTreeSet<i32>,
+    mesh: &Mesh,
+) -> (Vec<Exposure>, BTreeSet<i32>) {
+    let pairs = geometry_pairs(ticks, player);
+    if pairs.is_empty() {
+        return (Vec::new(), BTreeSet::new());
+    }
+
+    let shot_rows = pairs
+        .iter()
+        .filter(|pair| shot_ticks.contains(&pair.tick))
+        .map(|pair| pair.row)
+        .collect::<Vec<_>>();
+    let shot_visibility = geometry::visible_rows(&shot_rows, mesh);
+    let visible_ticks = pairs
+        .iter()
+        .filter(|pair| shot_ticks.contains(&pair.tick))
+        .zip(shot_visibility)
+        .filter_map(|(pair, visible)| visible.then_some(pair.tick))
+        .collect::<BTreeSet<_>>();
+
+    let mut exposures = Vec::new();
+    let mut seen_keys = BTreeSet::new();
+    for damage in damages {
+        let Some(enemy) = damage.victim else {
+            continue;
+        };
+        let Some(round_index) = round_index_for_tick(rounds, damage.tick) else {
+            continue;
+        };
+        let window = pairs
+            .iter()
+            .filter(|pair| {
+                pair.enemy == enemy
+                    && pair.round_index == round_index
+                    && pair.tick >= damage.tick - ENGAGEMENT_TICKS
+                    && pair.tick <= damage.tick
+            })
+            .collect::<Vec<_>>();
+        if window.is_empty() {
+            continue;
+        }
+        let rows = window.iter().map(|pair| pair.row).collect::<Vec<_>>();
+        let visibility = geometry::visible_rows(&rows, mesh);
+        let Some(last) = visibility
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, visible)| visible.then_some(index))
+        else {
+            continue;
+        };
+        let mut onset = last;
+        while onset > 0 {
+            let current_tick = window[onset].tick;
+            let previous_tick = window[onset - 1].tick;
+            if !visibility[onset - 1] || current_tick - previous_tick > 1 {
+                break;
+            }
+            onset -= 1;
+        }
+        let pair = window[onset];
+        if !seen_keys.insert((pair.enemy, pair.round_index, pair.tick)) {
+            continue;
+        }
+        exposures.push(Exposure {
+            tick: pair.tick,
+            round_index: pair.round_index,
+            enemy: pair.enemy,
+            viewer_pitch: pair.viewer_pitch,
+            viewer_yaw: pair.viewer_yaw,
+        });
+    }
+    (exposures, visible_ticks)
+}
+
+struct GeometryPair {
+    tick: i32,
+    round_index: usize,
+    enemy: PlayerId,
+    viewer_pitch: f32,
+    viewer_yaw: f32,
+    row: VisibilityRow,
+}
+
+fn geometry_pairs(ticks: &TickObservations, player: PlayerId) -> Vec<GeometryPair> {
+    let mut viewer_at = HashMap::<(usize, i32), usize>::new();
+    for index in 0..ticks.len() {
+        if ticks.player(index) == player {
+            viewer_at.insert((ticks.round_index(index), ticks.tick(index)), index);
+        }
+    }
+
+    let mut pairs = Vec::new();
+    for index in 0..ticks.len() {
+        if ticks.player(index) == player {
+            continue;
+        }
+        let tick = ticks.tick(index);
+        let round_index = ticks.round_index(index);
+        let Some(viewer_index) = viewer_at.get(&(round_index, tick)).copied() else {
+            continue;
+        };
+        if ticks.health(index) <= 0 || ticks.health(viewer_index) <= 0 {
+            continue;
+        }
+        if ticks.side(index) == ticks.side(viewer_index) {
+            continue;
+        }
+        pairs.push(GeometryPair {
+            tick,
+            round_index,
+            enemy: ticks.player(index),
+            viewer_pitch: ticks.pitch(viewer_index),
+            viewer_yaw: ticks.yaw(viewer_index),
+            row: VisibilityRow {
+                viewer_origin: ticks.origin(viewer_index),
+                viewer_duck: ticks.duck_amount(viewer_index),
+                viewer_pitch: ticks.pitch(viewer_index),
+                viewer_yaw: ticks.yaw(viewer_index),
+                target_origin: ticks.origin(index),
+                target_duck: ticks.duck_amount(index),
+            },
+        });
+    }
+    pairs
+}
+
 fn player_tick_index(ticks: &TickObservations) -> HashMap<(PlayerId, i32), usize> {
     (0..ticks.len())
         .map(|index| ((ticks.player(index), ticks.tick(index)), index))
@@ -449,7 +601,7 @@ mod tests {
 
     #[test]
     fn matches_python_engagement_mechanics_fixture() {
-        let stats = calculate(&fixture(), PLAYER);
+        let stats = calculate(&fixture(), PLAYER, None);
         assert_eq!(stats.mechanics_exposures, 1);
         assert_eq!(stats.mechanics_engagements, 1);
         assert_eq!(stats.crosshair_placement, Some(5.0));
@@ -466,7 +618,57 @@ mod tests {
     fn returns_empty_metrics_without_tick_observations() {
         let mut facts = fixture();
         facts.ticks = TickObservations::from_samples([], &facts.rounds);
-        let stats = calculate(&facts, PLAYER);
+        let stats = calculate(&facts, PLAYER, None);
         assert_eq!(stats, empty());
+    }
+
+    #[test]
+    fn map_geometry_blocks_radar_visibility() {
+        let mut facts = fixture();
+        let mut ticks = Vec::new();
+        for tick in 1..=30 {
+            let yaw = if tick == 20 { 5.0 } else { 0.0 };
+            let velocity = if tick == 16 { 20.0 } else { 0.0 };
+            ticks.push(TickSample {
+                tick,
+                player: PLAYER,
+                side: Side::CounterTerrorist,
+                health: 100,
+                origin: [0.0, 0.0, 0.0],
+                pitch: 0.0,
+                yaw,
+                duck_amount: 0.0,
+                velocity,
+                shots_fired: 0,
+                weapon: "ak47".to_owned(),
+                spotted_by: vec![],
+            });
+            ticks.push(TickSample {
+                tick,
+                player: ENEMY,
+                side: Side::Terrorist,
+                health: 100,
+                origin: [10.0, 0.0, 0.0],
+                pitch: 0.0,
+                yaw: 180.0,
+                duck_amount: 0.0,
+                velocity: 0.0,
+                shots_fired: 0,
+                weapon: "ak47".to_owned(),
+                spotted_by: if tick >= 10 { vec![PLAYER] } else { vec![] },
+            });
+        }
+        facts.ticks = TickObservations::from_samples(ticks, &facts.rounds);
+        let wall = crate::geometry::Mesh::axis_aligned_box([1.0, 4.0, 100.0], [5.0, 0.0, 64.0]);
+
+        let radar = calculate(&facts, PLAYER, None);
+        assert_eq!(radar.mechanics_engagements, 1);
+        assert_eq!(radar.mechanics_quality, "radar-beta");
+
+        let blocked = calculate(&facts, PLAYER, Some(&wall));
+        assert_eq!(blocked.mechanics_quality, "geometry");
+        assert_eq!(blocked.mechanics_exposures, 0);
+        assert_eq!(blocked.mechanics_engagements, 0);
+        assert_eq!(blocked.spotted_shots, 0);
     }
 }

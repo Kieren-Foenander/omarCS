@@ -1,4 +1,5 @@
 mod coaching;
+mod geometry;
 mod match_facts;
 mod mechanics;
 mod metrics;
@@ -105,7 +106,8 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
-            print_json(&mechanics::calculate(&facts, player), pretty)?;
+            let mesh = geometry::load_map_mesh(&facts.map);
+            print_json(&mechanics::calculate(&facts, player, mesh.as_ref()), pretty)?;
         }
         Command::Sprays {
             demo,
@@ -115,7 +117,8 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
-            print_json(&spray::calculate(&facts, player), pretty)?;
+            let mesh = geometry::load_map_mesh(&facts.map);
+            print_json(&spray::calculate(&facts, player, mesh.as_ref()), pretty)?;
         }
         Command::Insights {
             demo,
@@ -125,8 +128,9 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
+            let mesh = geometry::load_map_mesh(&facts.map);
             let stats = metrics::calculate(&facts, player);
-            let mechanics = mechanics::calculate(&facts, player);
+            let mechanics = mechanics::calculate(&facts, player, mesh.as_ref());
             print_json(&coaching::calculate(&stats, &mechanics), pretty)?;
         }
         Command::Report {
@@ -144,6 +148,7 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
+            let mesh = geometry::load_map_mesh(&facts.map);
             print_json(
                 &report::assemble(
                     &facts,
@@ -153,6 +158,7 @@ fn main() -> Result<()> {
                         checksum,
                         played_at,
                     },
+                    mesh.as_ref(),
                 ),
                 pretty,
             )?;

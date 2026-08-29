@@ -59,7 +59,7 @@ Import a demo directly (also useful for testing):
 omarcs import ~/Downloads/match.dem
 ```
 
-The performance-focused Rust backend is being migrated behind the existing QML/JSON seam. Build and exercise its parser and Match Facts normalization without changing the active plugin backend:
+The performance-focused Rust backend is being migrated behind the existing QML/JSON seam. Build and exercise its parser and Match Facts normalization without changing the active plugin backend. When a CS2 physics mesh is cached (or can be extracted), `mechanics`, `sprays`, `insights`, and `report` use map-geometry visibility instead of spotted-by radar:
 
 ```bash
 cargo build --release -p omarcs-native

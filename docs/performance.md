@@ -39,8 +39,10 @@ seam: analysis version, checksum identity, merged stats and Engagement
 metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
 the full value. The Python launcher is unchanged until a real Demo produces
 a golden Match Report.
-Map-geometry visibility is still future work; without a mesh the native path
-uses spotted-by observations the same way Python does.
+Map-geometry visibility is now on the native path: FOV plus ray-mesh tests
+against cached CS2 physics GLBs, with `mechanicsQuality: "geometry"` when a
+mesh loads. Without a mesh the native path uses spotted-by observations the
+same way Python does.
 
 The compact adapter reads the parser dataframe once, then drops spectators,
 steamid 0, and ticks outside reconstructed rounds. Weapons are interned and

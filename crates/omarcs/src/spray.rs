@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
+use crate::geometry::{self, Mesh, VisibilityRow};
 use crate::match_facts::{BulletFact, MatchFacts, PlayerId};
 
 const SPRAY_GAP_TICKS: i32 = 16;
@@ -70,7 +71,7 @@ struct TargetCandidate {
     visible: bool,
 }
 
-pub fn calculate(facts: &MatchFacts, player: PlayerId) -> Vec<SprayBurst> {
+pub fn calculate(facts: &MatchFacts, player: PlayerId, mesh: Option<&Mesh>) -> Vec<SprayBurst> {
     if facts.ticks.is_empty() {
         return Vec::new();
     }
@@ -85,7 +86,7 @@ pub fn calculate(facts: &MatchFacts, player: PlayerId) -> Vec<SprayBurst> {
         .iter()
         .flat_map(|(_, burst)| burst.iter().map(|shot| shot.tick))
         .collect::<HashSet<_>>();
-    let candidates = target_candidates(facts, player, &shot_ticks);
+    let candidates = target_candidates(facts, player, &shot_ticks, mesh);
     let mut sprays = Vec::new();
 
     for (weapon, burst) in grouped {
@@ -176,6 +177,7 @@ fn target_candidates(
     facts: &MatchFacts,
     player: PlayerId,
     shot_ticks: &HashSet<i32>,
+    mesh: Option<&Mesh>,
 ) -> HashMap<i32, Vec<TargetCandidate>> {
     let ticks = &facts.ticks;
     let mut viewers = HashMap::<i32, usize>::new();
@@ -192,7 +194,8 @@ fn target_candidates(
         }
     }
 
-    let mut candidates = HashMap::<i32, Vec<TargetCandidate>>::new();
+    let mut rows = Vec::new();
+    let mut pending = Vec::new();
     for (tick, viewer_index) in viewers {
         if ticks.health(viewer_index) <= 0 {
             continue;
@@ -202,13 +205,36 @@ fn target_candidates(
             {
                 continue;
             }
-            candidates.entry(tick).or_default().push(TargetCandidate {
-                viewer_velocity: ticks.velocity(viewer_index),
+            pending.push((
+                tick,
+                TargetCandidate {
+                    viewer_velocity: ticks.velocity(viewer_index),
+                    target_origin: ticks.origin(enemy_index),
+                    target_duck: ticks.duck_amount(enemy_index),
+                    visible: ticks.spotted_by(enemy_index).contains(&player),
+                },
+            ));
+            rows.push(VisibilityRow {
+                viewer_origin: ticks.origin(viewer_index),
+                viewer_duck: ticks.duck_amount(viewer_index),
+                viewer_pitch: ticks.pitch(viewer_index),
+                viewer_yaw: ticks.yaw(viewer_index),
                 target_origin: ticks.origin(enemy_index),
                 target_duck: ticks.duck_amount(enemy_index),
-                visible: ticks.spotted_by(enemy_index).contains(&player),
             });
         }
+    }
+
+    if let Some(mesh) = mesh {
+        let visibility = geometry::visible_rows(&rows, mesh);
+        for (candidate, visible) in pending.iter_mut().zip(visibility) {
+            candidate.1.visible = visible;
+        }
+    }
+
+    let mut candidates = HashMap::<i32, Vec<TargetCandidate>>::new();
+    for (tick, candidate) in pending {
+        candidates.entry(tick).or_default().push(candidate);
     }
     candidates
 }
@@ -470,7 +496,7 @@ mod tests {
 
     #[test]
     fn matches_python_target_relative_spray_fixture() {
-        let sprays = calculate(&fixture(), PLAYER);
+        let sprays = calculate(&fixture(), PLAYER, None);
         assert_eq!(sprays.len(), 1);
         assert_eq!(sprays[0].weapon, "ak47");
         assert_eq!(
@@ -489,6 +515,38 @@ mod tests {
     fn returns_no_sprays_without_tick_observations() {
         let mut facts = fixture();
         facts.ticks = TickObservations::from_samples([], &facts.rounds);
-        assert_eq!(calculate(&facts, PLAYER), Vec::<SprayBurst>::new());
+        assert_eq!(calculate(&facts, PLAYER, None), Vec::<SprayBurst>::new());
+    }
+
+    #[test]
+    fn map_geometry_hides_unseen_spray_targets() {
+        let wall = crate::geometry::Mesh::axis_aligned_box([1.0, 4.0, 100.0], [5.0, 0.0, 64.0]);
+        let mut facts = fixture();
+        let mut ticks = Vec::new();
+        for tick in [100, 106, 112, 118, 124, 130] {
+            ticks.push(sample(
+                tick,
+                PLAYER,
+                Side::CounterTerrorist,
+                [0.0, 0.0, 0.0],
+                0.0,
+                vec![],
+            ));
+            ticks.push(sample(
+                tick,
+                ENEMY,
+                Side::Terrorist,
+                [10.0, 0.0, 0.0],
+                180.0,
+                vec![PLAYER],
+            ));
+        }
+        facts.ticks = TickObservations::from_samples(ticks, &facts.rounds);
+
+        assert_eq!(calculate(&facts, PLAYER, None).len(), 1);
+        assert_eq!(
+            calculate(&facts, PLAYER, Some(&wall)),
+            Vec::<SprayBurst>::new()
+        );
     }
 }

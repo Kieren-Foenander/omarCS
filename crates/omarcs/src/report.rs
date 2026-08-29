@@ -8,6 +8,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::coaching;
+use crate::geometry::Mesh;
 use crate::match_facts::{MatchFacts, PlayerId};
 use crate::mechanics::{self, MechanicsMetrics};
 use crate::metrics::{self, PlayerMetrics};
@@ -76,10 +77,15 @@ struct CoreStats {
     result: &'static str,
 }
 
-pub fn assemble(facts: &MatchFacts, player: PlayerId, meta: ReportMeta) -> MatchReport {
+pub fn assemble(
+    facts: &MatchFacts,
+    player: PlayerId,
+    meta: ReportMeta,
+    mesh: Option<&Mesh>,
+) -> MatchReport {
     let metrics = metrics::calculate(facts, player);
-    let mechanics = mechanics::calculate(facts, player);
-    let sprays = spray::calculate(facts, player);
+    let mechanics = mechanics::calculate(facts, player, mesh);
+    let sprays = spray::calculate(facts, player, mesh);
     let insights = coaching::calculate(&metrics, &mechanics);
     let name = metrics.name.clone();
 
@@ -202,7 +208,7 @@ mod tests {
 
     #[test]
     fn matches_python_analyze_demo_shape() {
-        let report = assemble(&quiet_facts(), PLAYER, meta());
+        let report = assemble(&quiet_facts(), PLAYER, meta(), None);
         let value = serde_json::to_value(&report).expect("json");
 
         assert_eq!(value["analysisVersion"], 4);
@@ -290,7 +296,7 @@ mod tests {
             },
         ];
 
-        let report = assemble(&facts, PLAYER, meta());
+        let report = assemble(&facts, PLAYER, meta(), None);
         assert_eq!(
             report.insights,
             vec!["You flashed teammates 2 times; tighten flash timing and calls.".to_owned()]
