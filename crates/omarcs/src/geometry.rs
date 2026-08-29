@@ -219,8 +219,7 @@ pub fn load_map_mesh(map_name: &str) -> Option<Mesh> {
 }
 
 fn geometry_path(map_name: &str) -> Option<PathBuf> {
-    if !map_name.starts_with("de_") && !map_name.starts_with("cs_") && !map_name.starts_with("ar_")
-    {
+    if !valid_map_name(map_name) {
         return None;
     }
     let maps = cs2_maps_root()?;
@@ -245,6 +244,20 @@ fn geometry_path(map_name: &str) -> Option<PathBuf> {
         return Some(output);
     }
     extract_physics(&binary, &vpk, map_name, &output, &metadata, signature)
+}
+
+fn valid_map_name(map_name: &str) -> bool {
+    let Some(suffix) = ["de_", "cs_", "ar_"]
+        .into_iter()
+        .find_map(|prefix| map_name.strip_prefix(prefix))
+    else {
+        return false;
+    };
+    !suffix.is_empty()
+        && map_name.len() <= 64
+        && suffix
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 fn extract_physics(
@@ -688,6 +701,28 @@ mod tests {
     fn unknown_map_returns_no_mesh() {
         assert!(load_map_mesh("not-a-map").is_none());
         assert!(load_map_mesh("de_this_map_does_not_exist").is_none());
+    }
+
+    #[test]
+    fn map_names_are_single_safe_identifiers() {
+        for valid in ["de_dust2", "cs_office", "ar_baggage", "de_Map_2"] {
+            assert!(valid_map_name(valid), "expected {valid:?} to be valid");
+        }
+        for invalid in [
+            "de_../escape",
+            "de_/absolute",
+            "de_nested/map",
+            "de_nested\\map",
+            "de_map.vpk",
+            "de_<img src=https://example.test>",
+            "de_",
+            "de_тест",
+        ] {
+            assert!(
+                !valid_map_name(invalid),
+                "expected {invalid:?} to be invalid"
+            );
+        }
     }
 
     #[test]

@@ -126,6 +126,14 @@ Panel {
     return match.stats.roundsFor + "–" + match.stats.roundsAgainst
   }
 
+  // Shared shell components may render strings using Text.AutoText. Demo fields
+  // are untrusted, so replace markup delimiters before passing them across that
+  // boundary. Local Text controls additionally force Text.PlainText below.
+  function safeText(raw) {
+    if (raw === null || raw === undefined) return ""
+    return String(raw).replace(/&/g, "＆").replace(/</g, "‹").replace(/>/g, "›")
+  }
+
   onRecentChanged: if (selectedIndex >= matchCount) selectedIndex = Math.max(0, matchCount - 1)
 
   FileView {
@@ -216,7 +224,7 @@ Panel {
     horizontalMargin: Style.space(5)
     foreground: root.selectedMatch && root.stats ? root.resultColor(root.stats.result) : root.foreground
     active: root.busy
-    tooltipText: root.selectedMatch ? root.selectedMatch.map + "  " + root.score(root.selectedMatch) : "omarCS — import a demo"
+    tooltipText: root.selectedMatch ? root.safeText(root.selectedMatch.map) + "  " + root.score(root.selectedMatch) : "omarCS — import a demo"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) root.refreshNow()
       else root.toggle()
@@ -279,14 +287,15 @@ Panel {
 
         PanelHero {
           width: parent.width
-          title: root.selectedMatch ? root.selectedMatch.map.replace("de_", "").toUpperCase() : "omarCS"
+          title: root.selectedMatch ? root.safeText(root.selectedMatch.map).replace("de_", "").toUpperCase() : "omarCS"
           meta: root.selectedMatch
-            ? root.stats.result + "  " + root.score(root.selectedMatch) + "  ·  " + root.selectedMatch.player.name
+            ? root.stats.result + "  " + root.score(root.selectedMatch) + "  ·  " + root.safeText(root.selectedMatch.player.name)
             : "LOCAL CS2 MATCH ANALYSIS"
           foreground: root.foreground
           fontFamily: root.fontFamily
           iconComponent: Component {
             Text {
+              textFormat: Text.PlainText
               text: root.selectedMatch && root.stats ? root.stats.result : "2"
               color: root.selectedMatch && root.stats ? root.resultColor(root.stats.result) : root.foreground
               font.family: root.fontFamily
@@ -344,6 +353,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width - Style.space(224)
             anchors.verticalCenter: parent.verticalCenter
             text: (root.selectedIndex + 1) + " / " + root.matchCount + (root.selectedIndex === 0 ? "  ·  NEWEST" : "")
@@ -367,6 +377,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: !root.selectedMatch
           width: parent.width
           text: root.busy
@@ -454,6 +465,7 @@ Panel {
                     spacing: Style.space(3)
 
                     Text {
+                      textFormat: Text.PlainText
                       text: modelData !== null && modelData !== undefined ? modelData.value : ""
                       color: root.foreground
                       font.family: root.fontFamily
@@ -462,6 +474,7 @@ Panel {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       visible: modelData !== null && modelData !== undefined && modelData.delta !== null
                       anchors.verticalCenter: parent.verticalCenter
                       text: visible ? root.formatDelta(modelData.delta, modelData.deltaDecimals) : ""
@@ -472,6 +485,7 @@ Panel {
                     }
                   }
                   Text {
+                    textFormat: Text.PlainText
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: modelData !== null && modelData !== undefined ? modelData.label : ""
                     color: root.dim
@@ -536,6 +550,7 @@ Panel {
                   height: matchDetailLabel.implicitHeight
 
                   Text {
+                    textFormat: Text.PlainText
                     id: matchDetailLabel
                     text: modelData !== null && modelData !== undefined ? (index > 0 ? "·  " : "") + modelData.value : ""
                     color: matchDetailHover !== null && matchDetailHover.containsMouse ? root.foreground : root.dim
@@ -630,6 +645,7 @@ Panel {
                     spacing: Style.space(3)
 
                     Text {
+                      textFormat: Text.PlainText
                       text: modelData !== null && modelData !== undefined ? modelData.value : ""
                       color: root.foreground
                       font.family: root.fontFamily
@@ -638,6 +654,7 @@ Panel {
                     }
 
                     Text {
+                      textFormat: Text.PlainText
                       visible: modelData !== null && modelData !== undefined && modelData.delta !== null
                       anchors.verticalCenter: parent.verticalCenter
                       text: visible ? root.formatDelta(modelData.delta, modelData.deltaDecimals) : ""
@@ -648,6 +665,7 @@ Panel {
                     }
                   }
                   Text {
+                    textFormat: Text.PlainText
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: modelData !== null && modelData !== undefined ? modelData.label : ""
                     color: root.dim
@@ -713,6 +731,7 @@ Panel {
                   height: mechanicsDetailLabel.implicitHeight
 
                   Text {
+                    textFormat: Text.PlainText
                     id: mechanicsDetailLabel
                     text: modelData !== null && modelData !== undefined ? (index > 0 ? "·  " : "") + modelData.value : ""
                     color: mechanicsDetailHover !== null && mechanicsDetailHover.containsMouse ? root.foreground : root.dim
@@ -758,6 +777,7 @@ Panel {
           Repeater {
             model: root.selectedMatch ? root.selectedMatch.insights : []
             Text {
+              textFormat: Text.PlainText
               required property var modelData
               width: content.width
               text: "•  " + modelData
@@ -798,6 +818,7 @@ Panel {
                 ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
                 : "transparent"
               Text {
+                textFormat: Text.PlainText
                 anchors.left: parent.left
                 anchors.leftMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
@@ -808,16 +829,18 @@ Panel {
                 font.pixelSize: Style.font.body
               }
               Text {
+                textFormat: Text.PlainText
                 anchors.left: parent.left
                 anchors.leftMargin: Style.space(34)
                 anchors.verticalCenter: parent.verticalCenter
-                text: modelData.map.replace("de_", "") + "  " + root.score(modelData)
+                text: root.safeText(modelData.map).replace("de_", "") + "  " + root.score(modelData)
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
                 font.bold: root.selectedIndex === index
               }
               Text {
+                textFormat: Text.PlainText
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.stats.kills + "–" + modelData.stats.deaths + "  ·  " + root.formatNumber(modelData.stats.rating, 2)
@@ -871,6 +894,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.sprayWeapon
               ? root.sprayWeapon.sprays + " SPRAYS   ·   BULLETS 1–10   ·   CONFIDENCE " + root.sprayWeapon.confidence
@@ -1029,6 +1053,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: "CENTRE = ENEMY HEAD   ·   NUMBER = BULLET ORDER   ·   HALO = MIDDLE 50%"
             color: root.dim
@@ -1045,6 +1070,7 @@ Panel {
             border.color: Qt.rgba(root.winColor.r, root.winColor.g, root.winColor.b, 0.45)
 
             Text {
+              textFormat: Text.PlainText
               id: sprayCoach
               anchors.left: parent.left
               anchors.right: parent.right
@@ -1079,6 +1105,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.refreshError !== ""
           width: parent.width
           text: root.refreshError

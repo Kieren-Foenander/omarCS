@@ -39,7 +39,13 @@ HELPER_SHA256 = "f3c85acebb55a8c8eefb1334db4fce2cda397dc50eb8ecdb5664cedbc900f7f
 VRF_VERSION = "20.0"
 VRF_URL = f"https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/{VRF_VERSION}/cli-linux-x64.zip"
 VRF_SHA256 = "3e8af47cd6ce52e8068904f2aa1dda23c56a6b96a8310b25090f0711cda76a8a"
-REPLAY_URL = re.compile(rb"https?://replay\d+\.valve\.net/730/[^\x00\s\"]+?\.dem\.bz2")
+REPLAY_URL = re.compile(
+    rb"https://replay\d+\.valve\.net/730/[A-Za-z0-9_-]+\.dem\.bz2"
+)
+REPLAY_HOST = re.compile(r"replay\d+\.valve\.net", re.ASCII)
+REPLAY_PATH = re.compile(r"/730/[A-Za-z0-9_-]+\.dem\.bz2", re.ASCII)
+MAX_COMPRESSED_DEMO_BYTES = 512 * 1024 * 1024
+MAX_DEMO_BYTES = 2 * 1024 * 1024 * 1024
 UNSAFE_PHASES = {"warmup", "live", "intermission"}
 
 
@@ -70,6 +76,26 @@ def extract_replay_urls(payload: bytes) -> list[str]:
         if url not in found:
             found.append(url)
     return found
+
+
+def trusted_replay_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and parsed.username is None
+        and parsed.password is None
+        and port is None
+        and parsed.hostname is not None
+        and REPLAY_HOST.fullmatch(parsed.hostname) is not None
+        and REPLAY_PATH.fullmatch(parsed.path) is not None
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 def load_state() -> dict:
@@ -207,15 +233,23 @@ class InterruptedForGame(RuntimeError):
 
 
 def download_demo(url: str, allowed: Callable[[], bool]) -> Path:
+    if not trusted_replay_url(url):
+        raise ValueError("Expected a trusted Valve HTTPS replay URL")
     root = demos_root()
     root.mkdir(parents=True, exist_ok=True)
     compressed = root / Path(urlparse(url).path).name
     partial = compressed.with_suffix(compressed.suffix + ".part")
     offset = partial.stat().st_size if partial.exists() else 0
+    if offset > MAX_COMPRESSED_DEMO_BYTES:
+        partial.unlink()
+        raise RuntimeError("Partial replay exceeds the compressed size limit")
     request = urllib.request.Request(url, headers={"User-Agent": "omarCS/0.1"})
     if offset:
         request.add_header("Range", f"bytes={offset}-")
     with urllib.request.urlopen(request, timeout=30) as response:
+        final_url = response.geturl()
+        if not trusted_replay_url(final_url):
+            raise RuntimeError("Replay download redirected outside trusted Valve HTTPS hosts")
         if offset and response.status != 206:
             offset = 0
         mode = "ab" if offset else "wb"
@@ -223,7 +257,14 @@ def download_demo(url: str, allowed: Callable[[], bool]) -> Path:
             while chunk := response.read(1024 * 1024):
                 if not allowed():
                     raise InterruptedForGame("download paused because a match started")
+                if output.tell() + len(chunk) > MAX_COMPRESSED_DEMO_BYTES:
+                    raise RuntimeError("Replay exceeds the compressed size limit")
                 output.write(chunk)
+    with partial.open("rb") as downloaded:
+        magic = downloaded.read(3)
+    if partial.stat().st_size < 4 or magic != b"BZh":
+        partial.unlink()
+        raise RuntimeError("Downloaded replay is not a bzip2 stream")
     os.replace(partial, compressed)
     return compressed
 
@@ -236,7 +277,12 @@ def decompress_demo(compressed: Path, allowed: Callable[[], bool]) -> Path:
             while chunk := source.read(1024 * 1024):
                 if not allowed():
                     raise InterruptedForGame("decompression paused because a match started")
+                if output.tell() + len(chunk) > MAX_DEMO_BYTES:
+                    raise RuntimeError("Replay exceeds the decompressed size limit")
                 output.write(chunk)
+        with partial.open("rb") as candidate:
+            if candidate.read(8) != b"PBDEMS2\0":
+                raise RuntimeError("Decompressed replay does not have a CS2 demo header")
         os.replace(partial, demo)
         return demo
     except BaseException:

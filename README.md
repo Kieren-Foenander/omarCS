@@ -158,6 +158,13 @@ scheduling, a nice value of 10, and low systemd CPU/I/O weights. Partial
 downloads resume later. Valve currently exposes the latest eight
 Premier/Competitive replays; FACEIT is not yet automatic.
 
+Automatic downloads accept only exact `https://replay<number>.valve.net/730/`
+demo URLs and reject redirects outside that origin pattern. Compressed and
+expanded sizes are bounded; bzip2 verifies its stream checksum during
+decompression, and omarCS verifies the CS2 demo header before invoking the
+parser. The complete delta from the pinned parser source is documented in
+[`vendor/demoparser/VENDORED.md`](vendor/demoparser/VENDORED.md).
+
 ## Optional configuration
 
 Create `~/.config/omarcs/config.toml` only if you want to override
