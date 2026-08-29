@@ -1,0 +1,276 @@
+{
+  "analysisVersion": 4,
+  "id": "003913afc3a746a4",
+  "checksum": "003913afc3a746a4c5c85e60b15922723a1b95286794af3d3adc946ddd07738a",
+  "map": "de_inferno",
+  "player": {
+    "steamId": "76561198959939965",
+    "name": "KammahG"
+  },
+  "stats": {
+    "kills": 25,
+    "deaths": 17,
+    "assists": 14,
+    "kd": 1.47,
+    "adr": 125.7,
+    "kast": 87.0,
+    "rating": 1.7,
+    "headshotPercent": 44.0,
+    "openingKills": 6,
+    "openingDeaths": 0,
+    "tradeKills": 2,
+    "tradedDeaths": 4,
+    "utilityDamage": 305,
+    "enemiesFlashed": 20,
+    "friendsFlashed": 2,
+    "enemyFlashSeconds": 51.9,
+    "rounds": 23,
+    "roundsFor": 13,
+    "roundsAgainst": 10,
+    "result": "W",
+    "crosshairPlacement": 4.67,
+    "horizontalAdjustment": 4.15,
+    "verticalAdjustment": 1.02,
+    "reactionTimeMs": 234.0,
+    "timeToDamageMs": 313.0,
+    "spottedAccuracy": 26.3,
+    "counterStrafePercent": 62.9,
+    "mechanicsEngagements": 43,
+    "mechanicsExposures": 48,
+    "spottedShots": 198,
+    "counterStrafeShots": 89,
+    "mechanicsQuality": "geometry"
+  },
+  "sprays": [
+    {
+      "weapon": "galilar",
+      "shots": [
+        {
+          "number": 1,
+          "x": 24.08,
+          "y": -0.68
+        },
+        {
+          "number": 2,
+          "x": 18.91,
+          "y": -9.77
+        },
+        {
+          "number": 3,
+          "x": 10.4,
+          "y": -19.11
+        },
+        {
+          "number": 4,
+          "x": 1.95,
+          "y": -23.55
+        },
+        {
+          "number": 5,
+          "x": 0.2,
+          "y": -21.96
+        },
+        {
+          "number": 6,
+          "x": -7.29,
+          "y": -23.76
+        },
+        {
+          "number": 7,
+          "x": -3.69,
+          "y": -22.93
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": -19.66,
+          "y": -16.5
+        },
+        {
+          "number": 2,
+          "x": -13.96,
+          "y": -25.44
+        },
+        {
+          "number": 3,
+          "x": -2.59,
+          "y": -43.13
+        },
+        {
+          "number": 4,
+          "x": -6.4,
+          "y": -60.38
+        },
+        {
+          "number": 5,
+          "x": -9.8,
+          "y": -67.22
+        },
+        {
+          "number": 6,
+          "x": -28.17,
+          "y": -62.13
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": 46.1,
+          "y": -20.61
+        },
+        {
+          "number": 2,
+          "x": -120.05,
+          "y": -12.97
+        },
+        {
+          "number": 3,
+          "x": -71.48,
+          "y": 43.19
+        },
+        {
+          "number": 4,
+          "x": 76.68,
+          "y": -33.43
+        },
+        {
+          "number": 5,
+          "x": -186.67,
+          "y": 182.38
+        },
+        {
+          "number": 6,
+          "x": -167.81,
+          "y": 166.79
+        },
+        {
+          "number": 7,
+          "x": -159.57,
+          "y": 142.69
+        },
+        {
+          "number": 8,
+          "x": -146.21,
+          "y": 142.78
+        },
+        {
+          "number": 9,
+          "x": -161.82,
+          "y": 117.42
+        },
+        {
+          "number": 10,
+          "x": -218.82,
+          "y": 109.41
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 5,
+          "x": 126.49,
+          "y": 9.82
+        },
+        {
+          "number": 6,
+          "x": 110.78,
+          "y": -6.75
+        },
+        {
+          "number": 7,
+          "x": 92.9,
+          "y": -22.67
+        },
+        {
+          "number": 8,
+          "x": 128.68,
+          "y": -18.15
+        },
+        {
+          "number": 9,
+          "x": 110.98,
+          "y": -11.45
+        },
+        {
+          "number": 10,
+          "x": 84.88,
+          "y": -13.87
+        }
+      ]
+    },
+    {
+      "weapon": "m4a4",
+      "shots": [
+        {
+          "number": 1,
+          "x": 19.83,
+          "y": -10.61
+        },
+        {
+          "number": 2,
+          "x": 0.64,
+          "y": -14.68
+        },
+        {
+          "number": 3,
+          "x": -30.85,
+          "y": -15.65
+        },
+        {
+          "number": 4,
+          "x": -25.51,
+          "y": -19.82
+        },
+        {
+          "number": 5,
+          "x": -10.58,
+          "y": -20.14
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": 18.6,
+          "y": -12.74
+        },
+        {
+          "number": 2,
+          "x": -21.24,
+          "y": -7.01
+        },
+        {
+          "number": 3,
+          "x": -7.48,
+          "y": -5.34
+        },
+        {
+          "number": 4,
+          "x": 1.41,
+          "y": -11.75
+        },
+        {
+          "number": 5,
+          "x": -13.42,
+          "y": -27.03
+        }
+      ]
+    }
+  ],
+  "insights": [
+    "Only 63% of rifle shots were fully settled; finish the counter-strafe before firing.",
+    "You flashed teammates 2 times; tighten flash timing and calls.",
+    "Few deaths were traded; check spacing and whether teammates could follow your fights."
+  ]
+}

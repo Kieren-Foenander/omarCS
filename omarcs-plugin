@@ -17,6 +17,8 @@ if [[ -z "$uv_bin" ]]; then
 fi
 
 # The auto-fetch systemd unit uses this stable launcher rather than a path in
-# uv's cache, so plugin updates are picked up normally.
+# uv's cache, so plugin updates are picked up normally. Keep the venv outside
+# the plugin folder because Omarchy rejects symlinks there.
 export OMARCS_COMMAND="$plugin_dir/omarcs-plugin"
+export UV_PROJECT_ENVIRONMENT="${XDG_CACHE_HOME:-$HOME/.cache}/omarcs/venv"
 exec "$uv_bin" run --project "$plugin_dir" --locked omarcs "$@"

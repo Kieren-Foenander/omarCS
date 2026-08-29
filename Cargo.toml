@@ -1,0 +1,15 @@
+[workspace]
+members = [
+  "crates/omarcs",
+  "vendor/demoparser/src/csgoproto",
+  "vendor/demoparser/src/parser",
+]
+resolver = "2"
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"

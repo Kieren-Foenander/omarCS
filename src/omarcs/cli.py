@@ -51,9 +51,7 @@ def import_paths(paths: list[Path], player: str | None, quiet: bool = False) -> 
                 match = analyze_demo(path, selector, checksum)
                 store.save_match(match)
                 imported += 1
-            except BaseException as error:  # Rust parser panics surface as BaseException through pyo3.
-                if isinstance(error, (KeyboardInterrupt, SystemExit)):
-                    raise
+            except Exception as error:
                 failures.append(f"{path.name}: {error}")
 
         if failures and imported == 0 and not store.matches(1):
