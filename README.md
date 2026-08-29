@@ -19,27 +19,41 @@ omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Co
 
 All demos and derived data stay on this computer.
 
-## Local setup
+## Install on Omarchy
 
 ```bash
-uv tool install --editable --force .
-mkdir -p ~/.config/omarchy/plugins
-mkdir -p ~/.config/omarchy/plugins/omarcs.stats
-install -m 0644 manifest.json Panel.qml ~/.config/omarchy/plugins/omarcs.stats/
-omarchy plugin validate ~/.config/omarchy/plugins/omarcs.stats
-omarchy-shell shell rescanPlugins
-omarchy plugin enable omarcs.stats --section right
+omarchy plugin add https://github.com/Kieren-Foenander/omarCS.git --enable
 ```
 
-For development, keep uv's environment outside the plugin directory because
-Omarchy intentionally rejects symlinks inside plugin folders:
+On a typical Omarchy installation, that is all users need to do. When enabled,
+the widget creates an isolated Python environment, installs the CS2 Game State
+Integration file, starts a user-level fetcher, and scans the usual demo folders.
+The next Premier or Competitive match is picked up when it ends. A `.dem` file
+placed in `~/Downloads` is found by the five-minute scan, or immediately with
+**Refresh demos** in the widget.
+
+`uv` is the only prerequisite. It is commonly already installed; if the widget
+reports that it is missing, run this once and reopen the widget:
+
+```bash
+omarchy pkg add uv
+```
+
+The initial run downloads Python analysis dependencies and verified CS2 helper
+tools. It happens only after the user enables the plugin: Omarchy intentionally
+never runs plugin install hooks during `omarchy plugin add`.
+
+## Local development
+
+Keep uv's environment outside the plugin directory because Omarchy rejects
+symlinks inside plugin folders:
 
 ```bash
 UV_PROJECT_ENVIRONMENT="$XDG_CACHE_HOME/omarcs/venv" uv sync
 UV_PROJECT_ENVIRONMENT="$XDG_CACHE_HOME/omarcs/venv" uv run pytest
 ```
 
-Import a demo directly:
+Import a demo directly (also useful for testing):
 
 ```bash
 omarcs import ~/Downloads/match.dem
@@ -116,3 +130,15 @@ Steam permits only one active CS2 Game Coordinator session. If the helper
 cannot query while CS2 still owns that session, omarCS keeps retrying during the
 post-match window and again when the game closes. FACEIT demos currently require
 manual download or privileged FACEIT Downloads API access.
+
+## Update and remove
+
+```bash
+omarchy plugin update omarcs.stats
+omarchy plugin remove omarcs.stats
+```
+
+Removing the plugin stops the dashboard. To remove automatic match fetching as
+well, run `systemctl --user disable --now omarcs-autofetch.service` and delete
+`~/.config/systemd/user/omarcs-autofetch.service`. Local match history remains
+in `~/.local/state/omarcs/` until the user removes it.

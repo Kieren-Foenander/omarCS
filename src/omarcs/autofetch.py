@@ -391,6 +391,9 @@ def steam_gsi_path() -> Path:
 def install_helper() -> None:
     root = helper_root()
     root.mkdir(parents=True, exist_ok=True)
+    required = ("boiler-writter", "libsteam_api.so", "steam_appid.txt")
+    if all((root / name).is_file() for name in required):
+        return
     with urllib.request.urlopen(HELPER_URL, timeout=60) as response:
         archive = response.read()
     if hashlib.sha256(archive).hexdigest() != HELPER_SHA256:
@@ -469,7 +472,7 @@ def setup_auto(seed: bool = True) -> None:
         state["status"] = "idle"
         save_state(state)
 
-    executable = shutil.which("omarcs")
+    executable = os.environ.get("OMARCS_COMMAND") or shutil.which("omarcs")
     if not executable:
         raise RuntimeError("Could not find the installed `omarcs` command")
     service_dir = Path.home() / ".config/systemd/user"

@@ -86,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--pretty", action="store_true")
 
     subcommands.add_parser("setup-auto", help="Install and enable automatic Valve demo fetching")
+    subcommands.add_parser("bootstrap", help=argparse.SUPPRESS)
     subcommands.add_parser("auto-run", help=argparse.SUPPRESS)
     auto_status = subcommands.add_parser("auto-status", help="Print automatic fetcher state")
     auto_status.add_argument("--pretty", action="store_true")
@@ -112,6 +113,14 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.run(["systemctl", "--user", "enable", "--now", "omarcs-autofetch.service"], check=True)
         print("Automatic match fetching is enabled.")
         return 0
+    if args.command == "bootstrap":
+        # The widget runs this after it is enabled. Re-running it after a shell
+        # reload is safe and also immediately checks for any local demo files.
+        from .autofetch import setup_auto
+
+        setup_auto()
+        settings = load_settings()
+        return import_paths(list(settings.import_paths), None, quiet=True)
     if args.command == "auto-run":
         from .autofetch import run_daemon
 

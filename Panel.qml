@@ -14,6 +14,7 @@ Panel {
   property var report: null
   property string loadError: ""
   property string refreshError: ""
+  property string bootstrapError: ""
   property int selectedIndex: 0
   property string page: "stats"
   property int sprayWeaponIndex: 0
@@ -45,7 +46,10 @@ Panel {
     : null
   readonly property bool hasSprayData: sprayWeapons.some(function(weapon) { return Number(weapon.sprays || 0) > 0 })
   readonly property string status: report ? String(report.status || "empty") : "empty"
-  readonly property bool busy: status === "analyzing" || refreshProcess.running
+  readonly property bool busy: status === "analyzing" || refreshProcess.running || bootstrapProcess.running
+  readonly property string pluginDir: manifest && manifest.__sourceDir
+    ? String(manifest.__sourceDir)
+    : Quickshell.env("HOME") + "/.config/omarchy/plugins/omarcs.stats"
 
   visible: true
   implicitWidth: button.implicitWidth
@@ -146,7 +150,7 @@ Panel {
 
   Process {
     id: refreshProcess
-    command: ["omarcs", "refresh", "--quiet"]
+    command: [root.pluginDir + "/omarcs-plugin", "refresh", "--quiet"]
     stderr: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.refreshError = String(text || "").trim()
@@ -156,6 +160,23 @@ Panel {
       if (exitCode !== 0 && root.refreshError === "") root.refreshError = "Demo scan failed"
     }
   }
+
+  // This is the first-run path after a user enables the plugin. It configures
+  // automatic match pickup and scans any demo files already on disk.
+  Process {
+    id: bootstrapProcess
+    command: [root.pluginDir + "/omarcs-plugin", "bootstrap"]
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.bootstrapError = String(text || "").trim()
+    }
+    onExited: function(exitCode) {
+      summaryFile.reload()
+      if (exitCode !== 0 && root.bootstrapError === "") root.bootstrapError = "Automatic setup failed"
+    }
+  }
+
+  Component.onCompleted: bootstrapProcess.running = true
 
   Timer {
     interval: Math.max(5, Number(root.setting("refreshMinutes", 30))) * 60 * 1000
@@ -350,7 +371,7 @@ Panel {
           width: parent.width
           text: root.busy
             ? "Scanning your demo folders…"
-            : (root.loadError || root.refreshError || (root.report ? root.report.message : "Import a demo to begin:\nomarcs import ~/Downloads/match.dem"))
+            : (root.loadError || root.refreshError || root.bootstrapError || (root.report ? root.report.message : "Looking for CS2 and demos…"))
           color: root.busy ? root.foreground : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.body

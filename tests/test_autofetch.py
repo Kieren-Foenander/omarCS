@@ -73,3 +73,15 @@ def test_process_queue_retains_downloads_when_import_fails(tmp_path, monkeypatch
     assert compressed.exists()
     assert demo.exists()
     assert fetcher.state["queue"] == [url]
+
+
+def test_install_helper_is_idempotent_when_the_bundle_is_present(tmp_path, monkeypatch) -> None:
+    for name in ("boiler-writter", "libsteam_api.so", "steam_appid.txt"):
+        (tmp_path / name).write_bytes(b"installed")
+    monkeypatch.setattr(autofetch, "helper_root", lambda: tmp_path)
+
+    def unexpected_download(*args, **kwargs):
+        raise AssertionError("the helper bundle should not download again")
+
+    monkeypatch.setattr(autofetch.urllib.request, "urlopen", unexpected_download)
+    autofetch.install_helper()

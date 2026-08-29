@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Omarchy intentionally does not execute plugin install hooks. This launcher
+# makes first run portable while keeping generated environments out of the
+# plugin checkout.
+set -euo pipefail
+
+plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+uv_bin="$(command -v uv || true)"
+if [[ -z "$uv_bin" && -x "${HOME}/.local/bin/uv" ]]; then
+  uv_bin="${HOME}/.local/bin/uv"
+fi
+
+if [[ -z "$uv_bin" ]]; then
+  echo "omarCS needs uv to create its local Python environment. Install it once with: omarchy pkg add uv" >&2
+  exit 127
+fi
+
+# The auto-fetch systemd unit uses this stable launcher rather than a path in
+# uv's cache, so plugin updates are picked up normally.
+export OMARCS_COMMAND="$plugin_dir/omarcs-plugin"
+exec "$uv_bin" run --project "$plugin_dir" --locked omarcs "$@"
