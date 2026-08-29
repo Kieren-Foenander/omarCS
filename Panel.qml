@@ -271,10 +271,26 @@ Panel {
 
             Repeater {
               model: root.stats ? [
-                { label: "K–D", value: root.stats.kills + "–" + root.stats.deaths },
-                { label: "ADR", value: root.formatNumber(root.stats.adr, 1) },
-                { label: "KAST", value: root.formatNumber(root.stats.kast, 0) + "%" },
-                { label: "RATING", value: root.formatNumber(root.stats.rating, 2) }
+                {
+                  label: "K–D",
+                  value: root.stats.kills + "–" + root.stats.deaths,
+                  tooltip: "Kills–deaths for this match.\nMore kills than deaths is generally better."
+                },
+                {
+                  label: "ADR",
+                  value: root.formatNumber(root.stats.adr, 1),
+                  tooltip: "Average damage dealt per round.\nHigher is better."
+                },
+                {
+                  label: "KAST",
+                  value: root.formatNumber(root.stats.kast, 0) + "%",
+                  tooltip: "Rounds with a kill, assist, survival, or traded death.\nHigher is better."
+                },
+                {
+                  label: "RATING",
+                  value: root.formatNumber(root.stats.rating, 2),
+                  tooltip: "Overall performance estimate from kills, deaths,\nassists, impact, KAST, and ADR. Around 1.00 is average."
+                }
               ] : []
 
               Rectangle {
@@ -282,15 +298,15 @@ Panel {
                 width: (content.width - Style.space(18)) / 4
                 height: Style.space(66)
                 radius: Style.cornerRadius
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
-                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
+                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, metricHover !== null && metricHover.containsMouse ? 0.10 : 0.06)
+                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, metricHover !== null && metricHover.containsMouse ? 0.30 : 0.16)
 
                 Column {
                   anchors.centerIn: parent
                   spacing: Style.space(3)
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData.value
+                    text: modelData !== null && modelData !== undefined ? modelData.value : ""
                     color: root.foreground
                     font.family: root.fontFamily
                     font.bold: true
@@ -298,31 +314,93 @@ Panel {
                   }
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData.label
+                    text: modelData !== null && modelData !== undefined ? modelData.label : ""
                     color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
+                  }
+                }
+
+                MouseArea {
+                  id: metricHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  acceptedButtons: Qt.NoButton
+                }
+
+                PanelToolTip {
+                  visible: metricHover !== null && metricHover.containsMouse
+                  text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                  fontFamily: root.fontFamily
+                }
+              }
+            }
+          }
+
+          Item {
+            width: parent.width
+            height: matchDetails.implicitHeight
+
+            Row {
+              id: matchDetails
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(7)
+
+              Repeater {
+                model: root.stats ? [
+                  {
+                    value: "HS " + root.formatNumber(root.stats.headshotPercent, 0) + "%",
+                    tooltip: "Percentage of your kills that were headshots.\nHigher is generally better."
+                  },
+                  {
+                    value: "OPENINGS " + root.stats.openingKills + "–" + root.stats.openingDeaths,
+                    tooltip: "Opening kills–opening deaths.\nThese are the first kills and deaths of each round."
+                  },
+                  {
+                    value: "TRADES " + root.stats.tradeKills,
+                    tooltip: "Kills that traded a teammate shortly after their death.\nHigher usually indicates effective spacing."
+                  },
+                  {
+                    value: "UTIL " + root.stats.utilityDamage,
+                    tooltip: "Enemy damage dealt with HE grenades and fire.\nHigher means more damaging utility value."
+                  }
+                ] : []
+
+                Item {
+                  required property var modelData
+                  required property int index
+                  width: matchDetailLabel.implicitWidth
+                  height: matchDetailLabel.implicitHeight
+
+                  Text {
+                    id: matchDetailLabel
+                    text: modelData !== null && modelData !== undefined ? (index > 0 ? "·  " : "") + modelData.value : ""
+                    color: matchDetailHover !== null && matchDetailHover.containsMouse ? root.foreground : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  MouseArea {
+                    id: matchDetailHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                  }
+
+                  PanelToolTip {
+                    visible: matchDetailHover !== null && matchDetailHover.containsMouse
+                    text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                    fontFamily: root.fontFamily
                   }
                 }
               }
             }
           }
 
-          Text {
-            width: parent.width
-            text: root.stats
-              ? "HS " + root.formatNumber(root.stats.headshotPercent, 0) + "%   ·   OPENINGS " + root.stats.openingKills + "–" + root.stats.openingDeaths + "   ·   TRADES " + root.stats.tradeKills + "   ·   UTIL " + root.stats.utilityDamage
-              : ""
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignHCenter
-          }
-
           PanelSectionHeader {
             visible: root.hasMechanics
             width: parent.width
-            text: "AIM MECHANICS  ·  " + (root.stats.mechanicsQuality === "geometry" ? "MAP VISIBILITY" : "BETA")
+            text: "AIM MECHANICS  ·  " + (root.stats && root.stats.mechanicsQuality === "geometry" ? "MAP VISIBILITY" : "BETA")
             foreground: root.foreground
             fontFamily: root.fontFamily
           }
@@ -334,10 +412,26 @@ Panel {
 
             Repeater {
               model: root.hasMechanics ? [
-                { label: "XHAIR", value: root.formatNumber(root.stats.crosshairPlacement, 1) + "°" },
-                { label: "TTD", value: root.formatNumber(root.stats.timeToDamageMs, 0) + "ms" },
-                { label: "SPOT ACC", value: root.formatNumber(root.stats.spottedAccuracy, 0) + "%" },
-                { label: "COUNTER", value: root.formatNumber(root.stats.counterStrafePercent, 0) + "%" }
+                {
+                  label: "XHAIR",
+                  value: root.formatNumber(root.stats.crosshairPlacement, 1) + "°",
+                  tooltip: "Median aim movement from first visibility to first damage.\nLower is better; 0° means already on target.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
+                },
+                {
+                  label: "TTD",
+                  value: root.formatNumber(root.stats.timeToDamageMs, 0) + "ms",
+                  tooltip: "Median time from first visibility to first damage.\nLower is generally better; duels over one second are excluded.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
+                },
+                {
+                  label: "SPOT ACC",
+                  value: root.formatNumber(root.stats.spottedAccuracy, 0) + "%",
+                  tooltip: "Shots that hit ÷ shots fired while an enemy was visible.\nHigher is better. Based on " + root.stats.spottedShots + " shots."
+                },
+                {
+                  label: "COUNTER",
+                  value: root.formatNumber(root.stats.counterStrafePercent, 0) + "%",
+                  tooltip: "Uncrouched rifle shots fired below 34% max movement speed.\nHigher is better. Based on " + root.stats.counterStrafeShots + " shots."
+                }
               ] : []
 
               Rectangle {
@@ -345,15 +439,15 @@ Panel {
                 width: (content.width - Style.space(18)) / 4
                 height: Style.space(58)
                 radius: Style.cornerRadius
-                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
-                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
+                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, mechanicsHover !== null && mechanicsHover.containsMouse ? 0.09 : 0.04)
+                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, mechanicsHover !== null && mechanicsHover.containsMouse ? 0.28 : 0.13)
 
                 Column {
                   anchors.centerIn: parent
                   spacing: Style.space(2)
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData.value
+                    text: modelData !== null && modelData !== undefined ? modelData.value : ""
                     color: root.foreground
                     font.family: root.fontFamily
                     font.bold: true
@@ -361,27 +455,88 @@ Panel {
                   }
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData.label
+                    text: modelData !== null && modelData !== undefined ? modelData.label : ""
                     color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                   }
                 }
+
+                MouseArea {
+                  id: mechanicsHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  acceptedButtons: Qt.NoButton
+                }
+
+                PanelToolTip {
+                  visible: mechanicsHover !== null && mechanicsHover.containsMouse
+                  text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                  fontFamily: root.fontFamily
+                }
               }
             }
           }
 
-          Text {
+          Item {
             visible: root.hasMechanics
             width: parent.width
-            text: "FIRST SHOT " + root.formatNumber(root.stats.reactionTimeMs, 0) + "ms"
-              + "   ·   ADJUST H " + root.formatNumber(root.stats.horizontalAdjustment, 1) + "°"
-              + " / V " + root.formatNumber(root.stats.verticalAdjustment, 1) + "°"
-              + "   ·   " + root.stats.mechanicsEngagements + " DUELS"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignHCenter
+            height: mechanicsDetails.implicitHeight
+
+            Row {
+              id: mechanicsDetails
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(7)
+
+              Repeater {
+                model: root.hasMechanics ? [
+                  {
+                    value: "FIRST SHOT " + root.formatNumber(root.stats.reactionTimeMs, 0) + "ms",
+                    tooltip: "Median time from first enemy visibility to your first shot.\nLower generally means a faster reaction."
+                  },
+                  {
+                    value: "H " + root.formatNumber(root.stats.horizontalAdjustment, 1) + "°",
+                    tooltip: "Median horizontal aim correction before first damage.\nLower indicates better left–right pre-aim."
+                  },
+                  {
+                    value: "V " + root.formatNumber(root.stats.verticalAdjustment, 1) + "°",
+                    tooltip: "Median vertical aim correction before first damage.\nLower usually indicates better head-height placement."
+                  },
+                  {
+                    value: root.stats.mechanicsEngagements + " DUELS",
+                    tooltip: "Engagements with reconstructed first visibility and\nfirst damage within one second, used for aim metrics."
+                  }
+                ] : []
+
+                Item {
+                  required property var modelData
+                  required property int index
+                  width: mechanicsDetailLabel.implicitWidth
+                  height: mechanicsDetailLabel.implicitHeight
+
+                  Text {
+                    id: mechanicsDetailLabel
+                    text: modelData !== null && modelData !== undefined ? (index > 0 ? "·  " : "") + modelData.value : ""
+                    color: mechanicsDetailHover !== null && mechanicsDetailHover.containsMouse ? root.foreground : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  MouseArea {
+                    id: mechanicsDetailHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                  }
+
+                  PanelToolTip {
+                    visible: mechanicsDetailHover !== null && mechanicsDetailHover.containsMouse
+                    text: modelData !== null && modelData !== undefined ? modelData.tooltip : ""
+                    fontFamily: root.fontFamily
+                  }
+                }
+              }
+            }
           }
         }
 
