@@ -445,8 +445,11 @@ def install_text_file(path: Path, content: str) -> None:
 
 
 def setup_auto(seed: bool = True) -> None:
+    from .native import ensure_native_binary
+
     install_helper()
     install_vrf()
+    ensure_native_binary()
     gsi = steam_gsi_path()
     gsi_content = (
         '"omarCS"\n'

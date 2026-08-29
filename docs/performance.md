@@ -20,7 +20,7 @@ These wall-clock figures describe the development machine and are not portable C
 
 1. The vendored parser must retain the upstream fixture checksum before its output construction is changed.
 2. Existing Python semantic fixtures must pass against each ported Match Facts calculation.
-3. At least one Awpy-compatible real Demo must produce a normalized golden Match Report before the launcher changes to Rust. That golden now exists on the native geometry path; the launcher still waits for a dedicated switch slice.
+3. At least one Awpy-compatible real Demo must produce a normalized golden Match Report before the launcher changes to Rust. That golden now exists on the native geometry path, and `omarcs import` now calls `omarcs-native report`.
 4. The QML-facing Dashboard Summary schema must remain compatible throughout migration.
 
 Core player statistics now have a Rust parity fixture covering K/D/A, ADR,
@@ -40,12 +40,14 @@ metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
 the full value. A real Premier Demo now has a committed golden Match Report
 for the native geometry path. Core player statistics on that Demo match the
 Python/Awpy report; Engagement metrics, Sprays, and the first coaching note
-currently differ from Python and are snapshotted as native output. The
-Python launcher stays in place until a later slice switches `omarcs import`.
-Map-geometry visibility is now on the native path: FOV plus ray-mesh tests
-against cached CS2 physics GLBs, with `mechanicsQuality: "geometry"` when a
-mesh loads. Without a mesh the native path uses spotted-by observations the
-same way Python does.
+currently differ from Python and are snapshotted as native output.
+`omarcs import`, refresh, and bootstrap now persist that native Match Report
+through the existing Python store and Dashboard Summary seam. Setup copies
+`omarcs-native` into the local data directory, building it with cargo when
+the binary is missing. Map-geometry visibility is on the native path: FOV
+plus ray-mesh tests against cached CS2 physics GLBs, with
+`mechanicsQuality: "geometry"` when a mesh loads. Without a mesh the native
+path uses spotted-by observations the same way Python does.
 
 The compact adapter reads the parser dataframe once, then drops spectators,
 steamid 0, and ticks outside reconstructed rounds. Weapons are interned and

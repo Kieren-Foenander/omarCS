@@ -1,6 +1,6 @@
 # omarCS
 
-omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Counter-Strike 2 `.dem` files, calculates personal match statistics with Awpy, stores a small local history, and presents the latest result and recent trends in the bar.
+omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Counter-Strike 2 `.dem` files, calculates personal match statistics with the native Rust backend, stores a small local history, and presents the latest result and recent trends in the bar.
 
 ## MVP features
 
@@ -32,16 +32,17 @@ The next Premier or Competitive match is picked up when it ends. A `.dem` file
 placed in `~/Downloads` is found by the five-minute scan, or immediately with
 **Refresh demos** in the widget.
 
-`uv` is the only prerequisite. It is commonly already installed; if the widget
-reports that it is missing, run this once and reopen the widget:
+`uv` and `cargo` are the prerequisites. `uv` is commonly already installed; if
+the widget reports that it is missing, run this once and reopen the widget:
 
 ```bash
 omarchy pkg add uv
 ```
 
 The initial run downloads Python analysis dependencies and verified CS2 helper
-tools. It happens only after the user enables the plugin: Omarchy intentionally
-never runs plugin install hooks during `omarchy plugin add`.
+tools, then builds `omarcs-native` when that binary is missing. It happens only
+after the user enables the plugin: Omarchy intentionally never runs plugin
+install hooks during `omarchy plugin add`.
 
 ## Local development
 
@@ -59,7 +60,7 @@ Import a demo directly (also useful for testing):
 omarcs import ~/Downloads/match.dem
 ```
 
-The performance-focused Rust backend is being migrated behind the existing QML/JSON seam. Build and exercise its parser and Match Facts normalization without changing the active plugin backend. When a CS2 physics mesh is cached (or can be extracted), `mechanics`, `sprays`, `insights`, and `report` use map-geometry visibility instead of spotted-by radar:
+The plugin launcher still owns scanning, storage, and the Dashboard Summary. Match Report calculation now runs through `omarcs-native report`. First-time setup builds that binary when it is missing (`cargo` required). When a CS2 physics mesh is cached (or can be extracted), Engagements, Sprays, insights, and the Match Report use map-geometry visibility instead of spotted-by radar:
 
 ```bash
 cargo build --release -p omarcs-native

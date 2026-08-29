@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .geometry import load_map_mesh
 from .mechanics import CS2_TICKS_PER_SECOND, calculate_mechanics
-from .spray import calculate_spray_bursts
 
 ANALYSIS_VERSION = 4
 
@@ -384,43 +381,9 @@ def coaching_insights(stats: dict[str, Any]) -> list[str]:
 def analyze_demo(
     path: Path, player_selector: str, checksum: str | None = None
 ) -> dict[str, Any]:
-    from awpy import Demo
+    from .native import generate_report
 
-    demo = Demo(path)
-    events = list(demo.default_events)
-    for event in ("player_blind", "fire_bullets"):
-        if event not in events:
-            events.append(event)
-    demo.parse(
-        events=events,
-        player_props=[
-            "pitch",
-            "yaw",
-            "duck_amount",
-            "velocity",
-            "approximate_spotted_by",
-            "active_weapon_name",
-            "shots_fired",
-        ],
-    )
-    steam_id, player_name = resolve_player(demo, player_selector)
-    map_name = str(getattr(demo, "header", {}).get("map_name") or "Unknown map")
-    mesh = load_map_mesh(map_name)
-    stats = calculate_player_metrics(demo, steam_id, mesh)
-    sprays = calculate_spray_bursts(demo, steam_id, mesh)
-    digest = checksum or demo_checksum(path)
-    played_at = datetime.fromtimestamp(
-        path.stat().st_mtime, tz=timezone.utc
-    ).isoformat()
-    return {
-        "analysisVersion": ANALYSIS_VERSION,
-        "id": digest[:16],
-        "checksum": digest,
-        "path": str(path.resolve()),
-        "playedAt": played_at,
-        "map": map_name,
-        "player": {"steamId": steam_id, "name": player_name},
-        "stats": stats,
-        "sprays": sprays,
-        "insights": coaching_insights(stats),
-    }
+    report = generate_report(path, player_selector)
+    if checksum and report.get("checksum") != checksum:
+        raise RuntimeError("native Match Report checksum did not match the Demo digest")
+    return report
