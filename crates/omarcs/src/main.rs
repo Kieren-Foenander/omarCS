@@ -1,3 +1,4 @@
+mod coaching;
 mod match_facts;
 mod mechanics;
 mod metrics;
@@ -49,6 +50,14 @@ enum Command {
     },
     /// Calculate native Sprays for one player.
     Sprays {
+        demo: PathBuf,
+        /// SteamID64 or exact in-demo player name.
+        player: String,
+        #[arg(long)]
+        pretty: bool,
+    },
+    /// Calculate native coaching insights for one player.
+    Insights {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
         player: String,
@@ -121,6 +130,23 @@ fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&sprays)?);
             } else {
                 println!("{}", serde_json::to_string(&sprays)?);
+            }
+        }
+        Command::Insights {
+            demo,
+            player,
+            pretty,
+        } => {
+            let parsed = parser_adapter::parse(&demo)?;
+            let facts = match_facts::MatchFacts::from_output(parsed.output);
+            let player = metrics::resolve_player(&facts, &player)?;
+            let stats = metrics::calculate(&facts, player);
+            let mechanics = mechanics::calculate(&facts, player);
+            let insights = coaching::calculate(&stats, &mechanics);
+            if pretty {
+                println!("{}", serde_json::to_string_pretty(&insights)?);
+            } else {
+                println!("{}", serde_json::to_string(&insights)?);
             }
         }
     }

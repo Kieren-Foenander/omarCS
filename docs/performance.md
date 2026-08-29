@@ -32,6 +32,8 @@ Engagement metrics now have a Rust parity fixture covering exposures,
 crosshair correction, first-shot time, time-to-damage, spotted accuracy, and
 counter-strafing on the radar-beta path. Sprays now have a Rust parity fixture
 covering numbered target-relative AK bursts on that same spotted-by path.
+Coaching notes now have a Rust parity fixture covering the bounded insight
+list from core statistics and radar-beta Engagement metrics.
 Map-geometry visibility is still future work; without a mesh the native path
 uses spotted-by observations the same way Python does.
 
