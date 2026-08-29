@@ -138,30 +138,7 @@ fn main() -> Result<()> {
             player,
             pretty,
         } => {
-            let checksum = report::checksum_path(&demo)?;
-            let played_at = report::played_at(&demo)?;
-            let path = demo
-                .canonicalize()
-                .unwrap_or_else(|_| demo.clone())
-                .to_string_lossy()
-                .into_owned();
-            let parsed = parser_adapter::parse(&demo)?;
-            let facts = match_facts::MatchFacts::from_output(parsed.output);
-            let player = metrics::resolve_player(&facts, &player)?;
-            let mesh = geometry::load_map_mesh(&facts.map);
-            print_json(
-                &report::assemble(
-                    &facts,
-                    player,
-                    report::ReportMeta {
-                        path,
-                        checksum,
-                        played_at,
-                    },
-                    mesh.as_ref(),
-                ),
-                pretty,
-            )?;
+            print_json(&report::generate(&demo, &player)?, pretty)?;
         }
     }
     Ok(())

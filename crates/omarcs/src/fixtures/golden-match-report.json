@@ -1,0 +1,671 @@
+{
+  "analysisVersion": 4,
+  "id": "003913afc3a746a4",
+  "checksum": "003913afc3a746a4c5c85e60b15922723a1b95286794af3d3adc946ddd07738a",
+  "map": "de_inferno",
+  "player": {
+    "steamId": "76561198959939965",
+    "name": "KammahG"
+  },
+  "stats": {
+    "kills": 25,
+    "deaths": 17,
+    "assists": 14,
+    "kd": 1.47,
+    "adr": 125.7,
+    "kast": 87.0,
+    "rating": 1.7,
+    "headshotPercent": 44.0,
+    "openingKills": 6,
+    "openingDeaths": 0,
+    "tradeKills": 2,
+    "tradedDeaths": 4,
+    "utilityDamage": 305,
+    "enemiesFlashed": 20,
+    "friendsFlashed": 2,
+    "enemyFlashSeconds": 51.9,
+    "rounds": 23,
+    "roundsFor": 13,
+    "roundsAgainst": 10,
+    "result": "W",
+    "crosshairPlacement": 6.44,
+    "horizontalAdjustment": 6.02,
+    "verticalAdjustment": 1.34,
+    "reactionTimeMs": 500.0,
+    "timeToDamageMs": 797.0,
+    "spottedAccuracy": 16.8,
+    "counterStrafePercent": 71.2,
+    "mechanicsEngagements": 25,
+    "mechanicsExposures": 80,
+    "spottedShots": 469,
+    "counterStrafeShots": 198,
+    "mechanicsQuality": "geometry"
+  },
+  "sprays": [
+    {
+      "weapon": "galilar",
+      "shots": [
+        {
+          "number": 1,
+          "x": 24.08,
+          "y": -0.68
+        },
+        {
+          "number": 2,
+          "x": 18.91,
+          "y": -9.77
+        },
+        {
+          "number": 3,
+          "x": 10.4,
+          "y": -19.11
+        },
+        {
+          "number": 4,
+          "x": 1.95,
+          "y": -23.55
+        },
+        {
+          "number": 5,
+          "x": 0.2,
+          "y": -21.96
+        },
+        {
+          "number": 6,
+          "x": -7.29,
+          "y": -23.76
+        },
+        {
+          "number": 7,
+          "x": -3.69,
+          "y": -22.93
+        },
+        {
+          "number": 8,
+          "x": 8.77,
+          "y": -46.1
+        },
+        {
+          "number": 9,
+          "x": 6.24,
+          "y": -37.67
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": 11.69,
+          "y": -13.36
+        },
+        {
+          "number": 2,
+          "x": 6.84,
+          "y": -5.6
+        },
+        {
+          "number": 3,
+          "x": -9.72,
+          "y": -8.44
+        },
+        {
+          "number": 4,
+          "x": -21.2,
+          "y": -5.64
+        },
+        {
+          "number": 5,
+          "x": -31.97,
+          "y": -10.51
+        },
+        {
+          "number": 6,
+          "x": -25.21,
+          "y": -26.86
+        },
+        {
+          "number": 7,
+          "x": -24.67,
+          "y": -23.38
+        },
+        {
+          "number": 8,
+          "x": -26.45,
+          "y": -7.64
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": 19.68,
+          "y": -9.31
+        },
+        {
+          "number": 2,
+          "x": 15.79,
+          "y": -7.2
+        },
+        {
+          "number": 3,
+          "x": 13.61,
+          "y": -15.89
+        },
+        {
+          "number": 4,
+          "x": 12.23,
+          "y": -23.38
+        },
+        {
+          "number": 5,
+          "x": 30.12,
+          "y": -19.43
+        },
+        {
+          "number": 6,
+          "x": 31.34,
+          "y": -25.97
+        },
+        {
+          "number": 7,
+          "x": 33.0,
+          "y": -14.27
+        },
+        {
+          "number": 8,
+          "x": 60.17,
+          "y": -1.21
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": 71.92,
+          "y": -28.71
+        },
+        {
+          "number": 2,
+          "x": 56.86,
+          "y": -26.08
+        },
+        {
+          "number": 3,
+          "x": 31.37,
+          "y": -13.2
+        },
+        {
+          "number": 4,
+          "x": 17.19,
+          "y": -7.64
+        },
+        {
+          "number": 5,
+          "x": -1.71,
+          "y": 4.73
+        },
+        {
+          "number": 6,
+          "x": -31.29,
+          "y": 0.51
+        },
+        {
+          "number": 7,
+          "x": -52.86,
+          "y": -8.34
+        },
+        {
+          "number": 8,
+          "x": -64.22,
+          "y": -7.33
+        },
+        {
+          "number": 9,
+          "x": -38.73,
+          "y": 16.61
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": -59.54,
+          "y": -9.02
+        },
+        {
+          "number": 2,
+          "x": -58.46,
+          "y": -14.73
+        },
+        {
+          "number": 3,
+          "x": -41.65,
+          "y": -17.75
+        },
+        {
+          "number": 4,
+          "x": -35.34,
+          "y": -27.82
+        },
+        {
+          "number": 5,
+          "x": -4.06,
+          "y": -27.08
+        },
+        {
+          "number": 6,
+          "x": 2.94,
+          "y": -18.33
+        },
+        {
+          "number": 7,
+          "x": -37.81,
+          "y": -2.23
+        },
+        {
+          "number": 8,
+          "x": -15.8,
+          "y": -0.79
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": -19.66,
+          "y": -16.5
+        },
+        {
+          "number": 2,
+          "x": -13.96,
+          "y": -25.44
+        },
+        {
+          "number": 3,
+          "x": -2.59,
+          "y": -43.13
+        },
+        {
+          "number": 4,
+          "x": -6.4,
+          "y": -60.38
+        },
+        {
+          "number": 5,
+          "x": -9.8,
+          "y": -67.22
+        },
+        {
+          "number": 6,
+          "x": -28.17,
+          "y": -62.13
+        },
+        {
+          "number": 7,
+          "x": -34.99,
+          "y": -21.62
+        },
+        {
+          "number": 8,
+          "x": -11.74,
+          "y": -3.83
+        },
+        {
+          "number": 9,
+          "x": 15.5,
+          "y": 4.92
+        }
+      ]
+    },
+    {
+      "weapon": "m4a1_silencer",
+      "shots": [
+        {
+          "number": 1,
+          "x": 11.39,
+          "y": -14.42
+        },
+        {
+          "number": 2,
+          "x": 12.56,
+          "y": -18.25
+        },
+        {
+          "number": 3,
+          "x": -108.16,
+          "y": -23.29
+        },
+        {
+          "number": 4,
+          "x": -106.65,
+          "y": -21.06
+        },
+        {
+          "number": 5,
+          "x": -96.45,
+          "y": -17.76
+        },
+        {
+          "number": 6,
+          "x": -92.72,
+          "y": -14.6
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": -31.66,
+          "y": -26.84
+        },
+        {
+          "number": 2,
+          "x": -42.93,
+          "y": -42.47
+        },
+        {
+          "number": 3,
+          "x": -63.96,
+          "y": -31.04
+        },
+        {
+          "number": 4,
+          "x": -91.28,
+          "y": -27.34
+        },
+        {
+          "number": 5,
+          "x": -118.8,
+          "y": -4.2
+        },
+        {
+          "number": 6,
+          "x": -119.17,
+          "y": -0.84
+        },
+        {
+          "number": 7,
+          "x": -124.88,
+          "y": 3.77
+        },
+        {
+          "number": 8,
+          "x": -127.72,
+          "y": 9.51
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": -154.81,
+          "y": -146.14
+        },
+        {
+          "number": 2,
+          "x": -157.61,
+          "y": -130.11
+        },
+        {
+          "number": 3,
+          "x": -160.65,
+          "y": -153.96
+        },
+        {
+          "number": 4,
+          "x": -175.85,
+          "y": -170.08
+        },
+        {
+          "number": 5,
+          "x": -177.47,
+          "y": -175.39
+        },
+        {
+          "number": 6,
+          "x": -162.44,
+          "y": -159.1
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": -83.85,
+          "y": -9.98
+        },
+        {
+          "number": 2,
+          "x": -87.3,
+          "y": -18.12
+        },
+        {
+          "number": 3,
+          "x": -63.44,
+          "y": -39.73
+        },
+        {
+          "number": 4,
+          "x": -56.96,
+          "y": -42.48
+        },
+        {
+          "number": 5,
+          "x": -70.55,
+          "y": -46.98
+        },
+        {
+          "number": 6,
+          "x": -57.85,
+          "y": -61.26
+        },
+        {
+          "number": 7,
+          "x": -42.57,
+          "y": -46.46
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": 46.1,
+          "y": -20.61
+        },
+        {
+          "number": 2,
+          "x": -120.05,
+          "y": -12.97
+        },
+        {
+          "number": 3,
+          "x": -71.48,
+          "y": 43.19
+        },
+        {
+          "number": 4,
+          "x": 76.68,
+          "y": -33.43
+        },
+        {
+          "number": 5,
+          "x": 56.56,
+          "y": 15.49
+        },
+        {
+          "number": 6,
+          "x": 80.61,
+          "y": 0.91
+        },
+        {
+          "number": 7,
+          "x": 89.99,
+          "y": -22.13
+        },
+        {
+          "number": 8,
+          "x": 103.98,
+          "y": -21.55
+        },
+        {
+          "number": 9,
+          "x": 86.65,
+          "y": -47.2
+        },
+        {
+          "number": 10,
+          "x": 26.56,
+          "y": -55.06
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": -0.91,
+          "y": 8.32
+        },
+        {
+          "number": 2,
+          "x": -3.9,
+          "y": 5.51
+        },
+        {
+          "number": 3,
+          "x": 15.02,
+          "y": -28.91
+        },
+        {
+          "number": 4,
+          "x": 5.05,
+          "y": -60.61
+        },
+        {
+          "number": 5,
+          "x": -17.32,
+          "y": -73.39
+        },
+        {
+          "number": 6,
+          "x": -38.0,
+          "y": -102.85
+        },
+        {
+          "number": 7,
+          "x": -55.08,
+          "y": -142.59
+        },
+        {
+          "number": 8,
+          "x": 59.41,
+          "y": -130.39
+        },
+        {
+          "number": 9,
+          "x": 28.19,
+          "y": -112.21
+        },
+        {
+          "number": 10,
+          "x": -43.75,
+          "y": -119.11
+        }
+      ]
+    },
+    {
+      "weapon": "m4a4",
+      "shots": [
+        {
+          "number": 1,
+          "x": 19.83,
+          "y": -10.61
+        },
+        {
+          "number": 2,
+          "x": 0.64,
+          "y": -14.68
+        },
+        {
+          "number": 3,
+          "x": -30.85,
+          "y": -15.65
+        },
+        {
+          "number": 4,
+          "x": -25.51,
+          "y": -19.82
+        },
+        {
+          "number": 5,
+          "x": -10.58,
+          "y": -20.14
+        }
+      ]
+    },
+    {
+      "weapon": "ak47",
+      "shots": [
+        {
+          "number": 1,
+          "x": 18.6,
+          "y": -12.74
+        },
+        {
+          "number": 2,
+          "x": -21.24,
+          "y": -7.01
+        },
+        {
+          "number": 3,
+          "x": -7.48,
+          "y": -5.34
+        },
+        {
+          "number": 4,
+          "x": 1.41,
+          "y": -11.75
+        },
+        {
+          "number": 5,
+          "x": -13.42,
+          "y": -27.03
+        },
+        {
+          "number": 6,
+          "x": 0.27,
+          "y": -5.05
+        },
+        {
+          "number": 7,
+          "x": 9.88,
+          "y": -12.41
+        }
+      ]
+    }
+  ],
+  "insights": [
+    "Time to damage was 797 ms; review whether placement or first-shot accuracy delayed fights.",
+    "You flashed teammates 2 times; tighten flash timing and calls.",
+    "Few deaths were traded; check spacing and whether teammates could follow your fights."
+  ]
+}

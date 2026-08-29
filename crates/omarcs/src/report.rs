@@ -8,10 +8,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::coaching;
-use crate::geometry::Mesh;
+use crate::geometry::{self, Mesh};
 use crate::match_facts::{MatchFacts, PlayerId};
 use crate::mechanics::{self, MechanicsMetrics};
 use crate::metrics::{self, PlayerMetrics};
+use crate::parser_adapter;
 use crate::spray::{self, SprayBurst};
 
 pub const ANALYSIS_VERSION: u32 = 4;
@@ -77,6 +78,30 @@ struct CoreStats {
     result: &'static str,
 }
 
+pub fn generate(demo: &Path, player_selector: &str) -> Result<MatchReport> {
+    let checksum = checksum_path(demo)?;
+    let played_at = played_at(demo)?;
+    let path = demo
+        .canonicalize()
+        .unwrap_or_else(|_| demo.to_path_buf())
+        .to_string_lossy()
+        .into_owned();
+    let parsed = parser_adapter::parse(demo)?;
+    let facts = MatchFacts::from_output(parsed.output);
+    let player = metrics::resolve_player(&facts, player_selector)?;
+    let mesh = geometry::load_map_mesh(&facts.map);
+    Ok(assemble(
+        &facts,
+        player,
+        ReportMeta {
+            path,
+            checksum,
+            played_at,
+        },
+        mesh.as_ref(),
+    ))
+}
+
 pub fn assemble(
     facts: &MatchFacts,
     player: PlayerId,
@@ -128,7 +153,7 @@ pub fn played_at(path: &Path) -> Result<String> {
         .with_context(|| format!("statting {}", path.display()))?
         .modified()
         .with_context(|| format!("mtime for {}", path.display()))?;
-    Ok(DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Micros, false))
+    Ok(DateTime::<Utc>::from(modified).to_rfc3339_opts(SecondsFormat::Secs, false))
 }
 
 impl ReportStats {
@@ -314,5 +339,81 @@ mod tests {
             digest,
             "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
         );
+    }
+
+    #[test]
+    fn played_at_matches_python_isoformat_seconds() {
+        let directory = std::env::temp_dir();
+        let path = directory.join("omarcs-native-report-played-at.dem");
+        std::fs::write(&path, b"hello").expect("write fixture");
+        let stamp = played_at(&path).expect("played_at");
+        std::fs::remove_file(&path).ok();
+        assert!(
+            stamp.ends_with("+00:00"),
+            "expected UTC offset, got {stamp}"
+        );
+        assert!(
+            !stamp.contains('.'),
+            "Python isoformat omits microseconds when they are zero: {stamp}"
+        );
+        assert_eq!(stamp.len(), "2026-01-02T03:04:05+00:00".len());
+    }
+
+    #[test]
+    #[ignore = "requires the golden Demo in OMARCS_REPORT_FIXTURE (or OMARCS_DEMO_FIXTURE)"]
+    fn real_demo_matches_golden_match_report() {
+        let path = report_fixture_path();
+        let digest = checksum_path(&path).expect("checksum");
+        let golden: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/golden-match-report.json"))
+                .expect("golden json");
+        assert_eq!(
+            digest,
+            golden["checksum"].as_str().expect("golden checksum"),
+            "fixture is not the committed golden Demo"
+        );
+
+        let report = generate(&path, "76561198959939965").expect("generate report");
+        let mut actual = serde_json::to_value(&report).expect("json");
+        assert_eq!(actual["stats"]["mechanicsQuality"], "geometry");
+        let actual_object = actual.as_object_mut().expect("object");
+        actual_object.remove("path");
+        actual_object.remove("playedAt");
+
+        for key in [
+            "kills",
+            "deaths",
+            "assists",
+            "kd",
+            "adr",
+            "kast",
+            "rating",
+            "headshotPercent",
+            "openingKills",
+            "openingDeaths",
+            "tradeKills",
+            "tradedDeaths",
+            "utilityDamage",
+            "enemiesFlashed",
+            "friendsFlashed",
+            "enemyFlashSeconds",
+            "rounds",
+            "roundsFor",
+            "roundsAgainst",
+            "result",
+        ] {
+            assert_eq!(
+                actual["stats"][key], golden["stats"][key],
+                "core stat {key} drifted from the golden / Python report"
+            );
+        }
+        assert_eq!(actual, golden);
+    }
+
+    fn report_fixture_path() -> std::path::PathBuf {
+        std::env::var_os("OMARCS_REPORT_FIXTURE")
+            .or_else(|| std::env::var_os("OMARCS_DEMO_FIXTURE"))
+            .map(std::path::PathBuf::from)
+            .expect("OMARCS_REPORT_FIXTURE or OMARCS_DEMO_FIXTURE")
     }
 }

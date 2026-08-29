@@ -20,7 +20,7 @@ These wall-clock figures describe the development machine and are not portable C
 
 1. The vendored parser must retain the upstream fixture checksum before its output construction is changed.
 2. Existing Python semantic fixtures must pass against each ported Match Facts calculation.
-3. At least one Awpy-compatible real Demo must produce a normalized golden Match Report before the launcher changes to Rust.
+3. At least one Awpy-compatible real Demo must produce a normalized golden Match Report before the launcher changes to Rust. That golden now exists on the native geometry path; the launcher still waits for a dedicated switch slice.
 4. The QML-facing Dashboard Summary schema must remain compatible throughout migration.
 
 Core player statistics now have a Rust parity fixture covering K/D/A, ADR,
@@ -37,8 +37,11 @@ list from core statistics and radar-beta Engagement metrics.
 A native Match Report now has a Rust parity fixture covering the QML JSON
 seam: analysis version, checksum identity, merged stats and Engagement
 metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
-the full value. The Python launcher is unchanged until a real Demo produces
-a golden Match Report.
+the full value. A real Premier Demo now has a committed golden Match Report
+for the native geometry path. Core player statistics on that Demo match the
+Python/Awpy report; Engagement metrics, Sprays, and the first coaching note
+currently differ from Python and are snapshotted as native output. The
+Python launcher stays in place until a later slice switches `omarcs import`.
 Map-geometry visibility is now on the native path: FOV plus ray-mesh tests
 against cached CS2 physics GLBs, with `mechanicsQuality: "geometry"` when a
 mesh loads. Without a mesh the native path uses spotted-by observations the
@@ -55,4 +58,13 @@ Run the native real-demo normalization gate with:
 ```bash
 OMARCS_DEMO_FIXTURE=/path/to/test_demo.dem \
   cargo test -p omarcs-native upstream_fixture_normalizes_expected_match_facts -- --ignored
+```
+
+Run the golden Match Report gate against the committed checksum
+`003913afc3a746a4c5c85e60b15922723a1b95286794af3d3adc946ddd07738a` (a local
+de_inferno Premier Demo, player SteamID64 `76561198959939965`):
+
+```bash
+OMARCS_REPORT_FIXTURE=/path/to/match.dem \
+  cargo test -p omarcs-native real_demo_matches_golden_match_report -- --ignored
 ```
