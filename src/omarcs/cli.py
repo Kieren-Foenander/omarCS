@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -85,6 +86,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = subcommands.add_parser("status", help="Print the current dashboard JSON")
     status.add_argument("--pretty", action="store_true")
+
+    subcommands.add_parser("setup-auto", help="Install and enable automatic Valve demo fetching")
+    subcommands.add_parser("auto-run", help=argparse.SUPPRESS)
+    auto_status = subcommands.add_parser("auto-status", help="Print automatic fetcher state")
+    auto_status.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -100,6 +106,23 @@ def main(argv: list[str] | None = None) -> int:
         summary = store.current_summary()
         store.close()
         print(json.dumps(summary, indent=2 if args.pretty else None))
+        return 0
+    if args.command == "setup-auto":
+        from .autofetch import setup_auto
+
+        setup_auto()
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+        subprocess.run(["systemctl", "--user", "enable", "--now", "omarcs-autofetch.service"], check=True)
+        print("Automatic match fetching is enabled.")
+        return 0
+    if args.command == "auto-run":
+        from .autofetch import run_daemon
+
+        return run_daemon()
+    if args.command == "auto-status":
+        from .autofetch import load_state
+
+        print(json.dumps(load_state(), indent=2 if args.pretty else None))
         return 0
     return 2
 
