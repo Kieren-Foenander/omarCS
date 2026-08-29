@@ -1,22 +1,31 @@
+#!/usr/bin/env python3
+"""Regenerate CS2 item maps from a local GameTracking-CS2 tree.
+
+Plugin install never runs this helper. The generated maps are already
+vendored. To refresh them, put a GameTracking-CS2 directory beside this
+crate and run this file; it only builds the local crate.
+"""
+from __future__ import annotations
+
 import subprocess
+import sys
+from pathlib import Path
 
-repo_url = "https://github.com/SteamDatabase/GameTracking-CS2/"
+ROOT = Path(__file__).resolve().parent
+TRACKING = ROOT / "GameTracking-CS2"
 
 
-try:
-    # Run the git clone command
-    subprocess.run(["git", "clone", repo_url, "--depth=1"], check=True)
-    print(f"Successfully cloned {repo_url}")
-except subprocess.CalledProcessError as e:
-    print(f"An error occurred while cloning the repository: {e}")
-except FileNotFoundError:
-    print("Git is not installed or not found in the system's PATH.")
-
-try:
-    # Run the cargo run --release command
-    result = subprocess.run(["cargo", "run", "--release"], check=True)
+def main() -> int:
+    if not TRACKING.is_dir():
+        print(
+            "A local GameTracking-CS2 directory is required beside this crate.",
+            file=sys.stderr,
+        )
+        return 1
+    subprocess.run(["cargo", "run", "--release"], cwd=ROOT, check=True)
     print("Cargo run completed successfully.")
-except subprocess.CalledProcessError as e:
-    print(f"An error occurred while running the Cargo command: {e}")
-except FileNotFoundError:
-    print("Cargo is not installed or not found in the system's PATH.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

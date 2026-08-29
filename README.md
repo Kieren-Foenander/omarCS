@@ -19,7 +19,7 @@ omarchy plugin add https://github.com/Kieren-Foenander/omarCS.git --enable
 ```
 
 `omarchy plugin add` only clones and validates the repository. It does
-not run plugin code, install hooks, or sudo. Enabling the widget is the
+not run plugin code or install hooks. Enabling the widget is the
 consent to finish setup.
 
 On first open, the widget:
