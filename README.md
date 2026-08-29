@@ -9,7 +9,7 @@ omarCS is a local-first CS2 match dashboard for the Omarchy shell. It imports Co
 - Opening duels, trade kills and traded deaths
 - Utility damage and flash impact
 - Deterministic coaching notes
-- Five-match popup and ten-match averages
+- Browsable five-match popup and ten-match averages
 - Automatic scanning of `~/Downloads`, `~/.local/share/omarcs/demos`, and the local CS2 folder
 
 All demos and derived data stay on this computer.
@@ -47,7 +47,9 @@ omarcs import ~/Downloads/match.dem --player 76561198000000000
 omarcs import ~/Downloads/match.dem --player "Player name"
 ```
 
-Press `R`, click **Refresh demos**, or middle-click the bar pill to scan again.
+Use **Older** / **Newer**, click a recent-match row, or press Left/Right (`H`/`L`)
+to browse the five most recent games. Press `R`, click **Refresh demos**, or
+middle-click the bar pill to scan again.
 
 ## Optional configuration
 

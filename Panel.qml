@@ -13,14 +13,20 @@ Panel {
   property var report: null
   property string loadError: ""
   property string refreshError: ""
+  property int selectedIndex: 0
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color winColor: "#4ade80"
+  readonly property color lossColor: "#f87171"
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property var latest: report && report.latest ? report.latest : null
-  readonly property var stats: latest && latest.stats ? latest.stats : null
   readonly property var recent: report && report.recent ? report.recent : []
+  readonly property int matchCount: Math.min(5, recent.length)
+  readonly property var selectedMatch: matchCount > 0
+    ? recent[Math.max(0, Math.min(selectedIndex, matchCount - 1))]
+    : (report && report.latest ? report.latest : null)
+  readonly property var stats: selectedMatch && selectedMatch.stats ? selectedMatch.stats : null
   readonly property var trends: report && report.trends ? report.trends : ({ matches: 0, wins: 0, rating: 0, adr: 0, kast: 0 })
   readonly property string status: report ? String(report.status || "empty") : "empty"
   readonly property bool busy: status === "analyzing" || refreshProcess.running
@@ -30,8 +36,8 @@ Panel {
   implicitHeight: button.implicitHeight
 
   function resultColor(result) {
-    if (result === "W") return Color.accent
-    if (result === "L") return urgent
+    if (result === "W") return winColor
+    if (result === "L") return lossColor
     return foreground
   }
 
@@ -46,10 +52,25 @@ Panel {
     refreshProcess.running = true
   }
 
+  function selectMatch(index) {
+    if (matchCount < 1) return
+    selectedIndex = Math.max(0, Math.min(Number(index), matchCount - 1))
+  }
+
+  function selectOlder() {
+    selectMatch(selectedIndex + 1)
+  }
+
+  function selectNewer() {
+    selectMatch(selectedIndex - 1)
+  }
+
   function score(match) {
     if (!match || !match.stats) return "—"
     return match.stats.roundsFor + "–" + match.stats.roundsAgainst
   }
+
+  onRecentChanged: if (selectedIndex >= matchCount) selectedIndex = Math.max(0, matchCount - 1)
 
   FileView {
     id: summaryFile
@@ -105,17 +126,22 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function older(): string { root.selectOlder(); return "ok" }
+    function newer(): string { root.selectNewer(); return "ok" }
   }
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.latest && root.stats
-      ? root.stats.result + " " + root.formatNumber(root.stats.rating, 2)
+    text: root.selectedMatch && root.stats
+      ? root.stats.result + "·" + root.formatNumber(root.stats.rating, 2)
       : "CS2"
+    fontSize: Style.font.caption
+    horizontalMargin: Style.space(5)
+    foreground: root.selectedMatch && root.stats ? root.resultColor(root.stats.result) : root.foreground
     active: root.busy
-    tooltipText: root.latest ? root.latest.map + "  " + root.score(root.latest) : "omarCS — import a demo"
+    tooltipText: root.selectedMatch ? root.selectedMatch.map + "  " + root.score(root.selectedMatch) : "omarCS — import a demo"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) root.refreshNow()
       else root.toggle()
@@ -135,6 +161,10 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      onMoveRequested: function(dx, dy) {
+        if (dx < 0) root.selectOlder()
+        else if (dx > 0) root.selectNewer()
+      }
       onActivateRequested: root.refreshNow()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
@@ -147,16 +177,16 @@ Panel {
 
         PanelHero {
           width: parent.width
-          title: root.latest ? root.latest.map.replace("de_", "").toUpperCase() : "omarCS"
-          meta: root.latest
-            ? root.stats.result + "  " + root.score(root.latest) + "  ·  " + root.latest.player.name
+          title: root.selectedMatch ? root.selectedMatch.map.replace("de_", "").toUpperCase() : "omarCS"
+          meta: root.selectedMatch
+            ? root.stats.result + "  " + root.score(root.selectedMatch) + "  ·  " + root.selectedMatch.player.name
             : "LOCAL CS2 MATCH ANALYSIS"
           foreground: root.foreground
           fontFamily: root.fontFamily
           iconComponent: Component {
             Text {
-              text: root.latest && root.stats ? root.stats.result : "2"
-              color: root.latest && root.stats ? root.resultColor(root.stats.result) : root.foreground
+              text: root.selectedMatch && root.stats ? root.stats.result : "2"
+              color: root.selectedMatch && root.stats ? root.resultColor(root.stats.result) : root.foreground
               font.family: root.fontFamily
               font.bold: true
               font.pixelSize: Style.font.display
@@ -166,8 +196,48 @@ Panel {
           }
         }
 
+        Row {
+          visible: root.matchCount > 1
+          width: parent.width
+          spacing: Style.space(8)
+
+          Button {
+            width: Style.space(104)
+            text: "‹  OLDER"
+            enabled: root.selectedIndex < root.matchCount - 1
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.selectOlder()
+          }
+
+          Text {
+            width: parent.width - Style.space(224)
+            anchors.verticalCenter: parent.verticalCenter
+            text: (root.selectedIndex + 1) + " / " + root.matchCount + (root.selectedIndex === 0 ? "  ·  NEWEST" : "")
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          Button {
+            width: Style.space(104)
+            text: "NEWER  ›"
+            enabled: root.selectedIndex > 0
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.selectNewer()
+          }
+        }
+
         Text {
-          visible: !root.latest
+          visible: !root.selectedMatch
           width: parent.width
           text: root.busy
             ? "Scanning your demo folders…"
@@ -182,13 +252,13 @@ Panel {
         }
 
         Column {
-          visible: !!root.latest
+          visible: !!root.selectedMatch
           width: parent.width
           spacing: Style.space(9)
 
           PanelSectionHeader {
             width: parent.width
-            text: "LATEST MATCH"
+            text: "MATCH " + (root.selectedIndex + 1) + " OF " + root.matchCount
             foreground: root.foreground
             fontFamily: root.fontFamily
           }
@@ -249,12 +319,12 @@ Panel {
         }
 
         PanelSeparator {
-          visible: !!root.latest
+          visible: !!root.selectedMatch
           foreground: root.foreground
         }
 
         Column {
-          visible: !!root.latest
+          visible: !!root.selectedMatch
           width: parent.width
           spacing: Style.space(8)
 
@@ -266,7 +336,7 @@ Panel {
           }
 
           Repeater {
-            model: root.latest ? root.latest.insights : []
+            model: root.selectedMatch ? root.selectedMatch.insights : []
             Text {
               required property var modelData
               width: content.width
@@ -298,12 +368,18 @@ Panel {
 
           Repeater {
             model: root.recent
-            Item {
+            Rectangle {
               required property var modelData
+              required property int index
               width: content.width
-              height: Style.space(24)
+              height: Style.space(28)
+              radius: Style.cornerRadius
+              color: root.selectedIndex === index
+                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                : "transparent"
               Text {
                 anchors.left: parent.left
+                anchors.leftMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.stats.result
                 color: root.resultColor(modelData.stats.result)
@@ -313,12 +389,13 @@ Panel {
               }
               Text {
                 anchors.left: parent.left
-                anchors.leftMargin: Style.space(28)
+                anchors.leftMargin: Style.space(34)
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.map.replace("de_", "") + "  " + root.score(modelData)
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
+                font.bold: root.selectedIndex === index
               }
               Text {
                 anchors.right: parent.right
@@ -327,6 +404,12 @@ Panel {
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.selectMatch(index)
               }
             }
           }
