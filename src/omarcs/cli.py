@@ -26,44 +26,41 @@ def import_paths(paths: list[Path], player: str | None, quiet: bool = False) -> 
 
     settings = load_settings()
     selector = player or settings.player or detect_active_steam_id()
-    store = Store()
-    files = demo_files(paths)
-    if not files:
-        store.publish(settings.keep_recent)
-        if not quiet:
-            print("No .dem files found.")
-        store.close()
-        return 0
-    if not selector:
-        store.write_status("error", "Could not detect your Steam account. Pass --player STEAMID64 or player name.")
-        store.close()
-        print("Could not detect your Steam account. Pass --player STEAMID64 or player name.", file=sys.stderr)
-        return 2
-
-    store.write_status("analyzing", f"Checking {len(files)} demo{'s' if len(files) != 1 else ''}…")
-    imported = 0
-    failures: list[str] = []
-    for path in files:
-        try:
-            checksum = demo_checksum(path)
-            if store.has_checksum(checksum, ANALYSIS_VERSION):
-                continue
+    with Store() as store:
+        files = demo_files(paths)
+        if not files:
+            store.publish(settings.keep_recent)
             if not quiet:
-                print(f"Analyzing {path.name}…")
-            match = analyze_demo(path, selector, checksum)
-            store.save_match(match)
-            imported += 1
-        except BaseException as error:  # Rust parser panics surface as BaseException through pyo3.
-            if isinstance(error, (KeyboardInterrupt, SystemExit)):
-                raise
-            failures.append(f"{path.name}: {error}")
+                print("No .dem files found.")
+            return 0
+        if not selector:
+            store.write_status("error", "Could not detect your Steam account. Pass --player STEAMID64 or player name.")
+            print("Could not detect your Steam account. Pass --player STEAMID64 or player name.", file=sys.stderr)
+            return 2
 
-    if failures and imported == 0 and not store.matches(1):
-        message = failures[0]
-        store.write_status("error", message)
-    else:
-        store.publish(settings.keep_recent)
-    store.close()
+        store.write_status("analyzing", f"Checking {len(files)} demo{'s' if len(files) != 1 else ''}…")
+        imported = 0
+        failures: list[str] = []
+        for path in files:
+            try:
+                checksum = demo_checksum(path)
+                if store.has_checksum(checksum, ANALYSIS_VERSION):
+                    continue
+                if not quiet:
+                    print(f"Analyzing {path.name}…")
+                match = analyze_demo(path, selector, checksum)
+                store.save_match(match)
+                imported += 1
+            except BaseException as error:  # Rust parser panics surface as BaseException through pyo3.
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                failures.append(f"{path.name}: {error}")
+
+        if failures and imported == 0 and not store.matches(1):
+            message = failures[0]
+            store.write_status("error", message)
+        else:
+            store.publish(settings.keep_recent)
 
     if not quiet:
         print(f"Imported {imported} new match{'es' if imported != 1 else ''}.")
@@ -103,9 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         settings = load_settings()
         return import_paths(list(settings.import_paths), args.player, args.quiet)
     if args.command == "status":
-        store = Store()
-        summary = store.current_summary()
-        store.close()
+        with Store() as store:
+            summary = store.current_summary()
         print(json.dumps(summary, indent=2 if args.pretty else None))
         return 0
     if args.command == "setup-auto":

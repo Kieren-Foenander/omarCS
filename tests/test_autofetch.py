@@ -1,4 +1,9 @@
-from omarcs.autofetch import GameState, extract_replay_urls
+from pathlib import Path
+
+import pytest
+
+from omarcs import autofetch
+from omarcs.autofetch import AutoFetcher, GameState, extract_replay_urls
 
 
 def test_extracts_unique_replay_urls_in_order() -> None:
@@ -20,3 +25,51 @@ def test_game_state_blocks_heavy_work_during_a_match() -> None:
     state.update({"map": {"phase": "gameover"}}, now=2.0)
     assert state.heavy_work_allowed()
     assert state.snapshot()[2] == 2.0
+
+
+class AlwaysAllowed:
+    def heavy_work_allowed(self) -> bool:
+        return True
+
+
+def test_process_queue_deletes_successfully_imported_downloads(tmp_path, monkeypatch) -> None:
+    url = "https://replay423.valve.net/730/match.dem.bz2"
+    compressed = tmp_path / "match.dem.bz2"
+    demo = tmp_path / "match.dem"
+    compressed.write_bytes(b"compressed")
+    demo.write_bytes(b"demo")
+    monkeypatch.setattr(autofetch, "demos_root", lambda: tmp_path)
+    monkeypatch.setattr(autofetch, "load_state", lambda: {"knownUrls": [], "queue": [url]})
+    monkeypatch.setattr(autofetch, "save_state", lambda state: None)
+    monkeypatch.setattr(autofetch, "parse_demo", lambda path, allowed: None)
+
+    fetcher = AutoFetcher(AlwaysAllowed())
+    fetcher.process_queue()
+
+    assert not compressed.exists()
+    assert not demo.exists()
+    assert fetcher.state["queue"] == []
+
+
+def test_process_queue_retains_downloads_when_import_fails(tmp_path, monkeypatch) -> None:
+    url = "https://replay423.valve.net/730/match.dem.bz2"
+    compressed = tmp_path / "match.dem.bz2"
+    demo = tmp_path / "match.dem"
+    compressed.write_bytes(b"compressed")
+    demo.write_bytes(b"demo")
+    monkeypatch.setattr(autofetch, "demos_root", lambda: tmp_path)
+    monkeypatch.setattr(autofetch, "load_state", lambda: {"knownUrls": [], "queue": [url]})
+    monkeypatch.setattr(autofetch, "save_state", lambda state: None)
+
+    def fail_parse(path: Path, allowed) -> None:
+        raise RuntimeError("parse failed")
+
+    monkeypatch.setattr(autofetch, "parse_demo", fail_parse)
+    fetcher = AutoFetcher(AlwaysAllowed())
+
+    with pytest.raises(RuntimeError, match="parse failed"):
+        fetcher.process_queue()
+
+    assert compressed.exists()
+    assert demo.exists()
+    assert fetcher.state["queue"] == [url]

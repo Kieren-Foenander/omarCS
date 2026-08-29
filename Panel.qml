@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -29,6 +30,12 @@ Panel {
     ? recent[Math.max(0, Math.min(selectedIndex, matchCount - 1))]
     : (report && report.latest ? report.latest : null)
   readonly property var stats: selectedMatch && selectedMatch.stats ? selectedMatch.stats : null
+  readonly property var comparisonMatch: selectedIndex < matchCount - 1
+    ? recent[selectedIndex + 1]
+    : null
+  readonly property var comparisonStats: comparisonMatch && comparisonMatch.stats
+    ? comparisonMatch.stats
+    : null
   readonly property bool hasMechanics: !!stats && Number(stats.mechanicsEngagements || 0) > 0
   readonly property var trends: report && report.trends ? report.trends : ({ matches: 0, wins: 0, rating: 0, adr: 0, kast: 0 })
   readonly property var sprayControl: report && report.sprayControl ? report.sprayControl : ({ matches: 0, weapons: [] })
@@ -54,6 +61,31 @@ Panel {
     if (raw === null || raw === undefined || raw === "") return "—"
     var value = Number(raw)
     return isFinite(value) ? value.toFixed(decimals) : "—"
+  }
+
+  function metricDelta(current, previous) {
+    var currentValue = Number(current)
+    var previousValue = Number(previous)
+    if (!isFinite(currentValue) || !isFinite(previousValue)) return null
+    var delta = currentValue - previousValue
+    return Math.abs(delta) < 0.0001 ? 0 : delta
+  }
+
+  function formatDelta(delta, decimals) {
+    if (delta === null || delta === undefined || !isFinite(Number(delta))) return ""
+    return (delta > 0 ? "+" : "") + Number(delta).toFixed(decimals)
+  }
+
+  function deltaColor(delta, higherIsBetter) {
+    if (delta === null || delta === undefined || Number(delta) === 0) return dim
+    return (Number(delta) > 0) === higherIsBetter ? winColor : lossColor
+  }
+
+  function killDeathDifference(matchStats) {
+    if (!matchStats) return null
+    var kills = Number(matchStats.kills)
+    var deaths = Number(matchStats.deaths)
+    return isFinite(kills) && isFinite(deaths) ? kills - deaths : null
   }
 
   function refreshNow() {
@@ -178,12 +210,19 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(420))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(640))
+    contentHeight: panel.fittedContentHeight(content.implicitHeight + Style.space(12) + footer.implicitHeight)
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      clip: true
       onMoveRequested: function(dx, dy) {
+        if (dy !== 0 && panelFlick.contentHeight > panelFlick.height) {
+          panelFlick.contentY = Math.max(0, Math.min(
+            panelFlick.contentY + dy * Style.space(56),
+            panelFlick.contentHeight - panelFlick.height
+          ))
+        }
         if (root.page === "spray") {
           if (dx < 0) root.cycleSprayWeapon(-1)
           else if (dx > 0) root.cycleSprayWeapon(1)
@@ -197,10 +236,25 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(text) { if (text === "r" || text === "R") root.refreshNow() }
 
-      Column {
-        id: content
-        width: parent.width
-        spacing: Style.space(12)
+      Flickable {
+        id: panelFlick
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: footer.top
+        anchors.bottomMargin: Style.space(12)
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        Column {
+          id: content
+          width: panelFlick.width
+          spacing: Style.space(12)
 
         PanelHero {
           width: parent.width
@@ -220,6 +274,34 @@ Panel {
               horizontalAlignment: Text.AlignHCenter
               verticalAlignment: Text.AlignVCenter
             }
+          }
+        }
+
+        Row {
+          visible: !!root.selectedMatch && root.hasSprayData
+          width: parent.width
+          spacing: Style.space(6)
+
+          Button {
+            width: (parent.width - Style.space(6)) / 2
+            text: "MATCH STATS"
+            bordered: true
+            foreground: root.page === "stats" ? root.winColor : root.dim
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.page = "stats"
+          }
+
+          Button {
+            width: (parent.width - Style.space(6)) / 2
+            text: "SPRAY CONTROL"
+            bordered: true
+            foreground: root.page === "spray" ? root.winColor : root.dim
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.page = "spray"
           }
         }
 
@@ -263,34 +345,6 @@ Panel {
           }
         }
 
-        Row {
-          visible: !!root.selectedMatch && root.hasSprayData
-          width: parent.width
-          spacing: Style.space(6)
-
-          Button {
-            width: (parent.width - Style.space(6)) / 2
-            text: "MATCH STATS"
-            bordered: true
-            foreground: root.page === "stats" ? root.winColor : root.dim
-            fontFamily: root.fontFamily
-            fontSize: Style.font.caption
-            verticalPadding: Style.space(5)
-            onClicked: root.page = "stats"
-          }
-
-          Button {
-            width: (parent.width - Style.space(6)) / 2
-            text: "SPRAY CONTROL"
-            bordered: true
-            foreground: root.page === "spray" ? root.winColor : root.dim
-            fontFamily: root.fontFamily
-            fontSize: Style.font.caption
-            verticalPadding: Style.space(5)
-            onClicked: root.page = "spray"
-          }
-        }
-
         Text {
           visible: !root.selectedMatch
           width: parent.width
@@ -327,26 +381,38 @@ Panel {
                 {
                   label: "K–D",
                   value: root.stats.kills + "–" + root.stats.deaths,
+                  delta: root.metricDelta(root.killDeathDifference(root.stats), root.killDeathDifference(root.comparisonStats)),
+                  deltaDecimals: 0,
+                  higherIsBetter: true,
                   title: "Kills–Deaths",
-                  tooltip: "Kills–deaths for this match.\nMore kills than deaths is generally better."
+                  tooltip: "Kills–deaths for this match.\nMore kills than deaths is generally better.\nChange is compared with your previous game."
                 },
                 {
                   label: "ADR",
                   value: root.formatNumber(root.stats.adr, 1),
+                  delta: root.metricDelta(root.stats.adr, root.comparisonStats ? root.comparisonStats.adr : null),
+                  deltaDecimals: 1,
+                  higherIsBetter: true,
                   title: "Average Damage per Round",
-                  tooltip: "Average damage dealt per round.\nHigher is better."
+                  tooltip: "Average damage dealt per round.\nHigher is better.\nChange is compared with your previous game."
                 },
                 {
                   label: "KAST",
                   value: root.formatNumber(root.stats.kast, 0) + "%",
+                  delta: root.metricDelta(root.stats.kast, root.comparisonStats ? root.comparisonStats.kast : null),
+                  deltaDecimals: 0,
+                  higherIsBetter: true,
                   title: "Kill, Assist, Survive, or Trade",
-                  tooltip: "Rounds with a kill, assist, survival, or traded death.\nHigher is better."
+                  tooltip: "Rounds with a kill, assist, survival, or traded death.\nHigher is better.\nChange is compared with your previous game."
                 },
                 {
                   label: "RATING",
                   value: root.formatNumber(root.stats.rating, 2),
+                  delta: root.metricDelta(root.stats.rating, root.comparisonStats ? root.comparisonStats.rating : null),
+                  deltaDecimals: 2,
+                  higherIsBetter: true,
                   title: "Rating",
-                  tooltip: "Overall performance estimate from kills, deaths,\nassists, impact, KAST, and ADR. Around 1.00 is average."
+                  tooltip: "Overall performance estimate from kills, deaths,\nassists, impact, KAST, and ADR. Around 1.00 is average.\nChange is compared with your previous game."
                 }
               ] : []
 
@@ -361,13 +427,28 @@ Panel {
                 Column {
                   anchors.centerIn: parent
                   spacing: Style.space(3)
-                  Text {
+
+                  Row {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData !== null && modelData !== undefined ? modelData.value : ""
-                    color: root.foreground
-                    font.family: root.fontFamily
-                    font.bold: true
-                    font.pixelSize: Style.font.body
+                    spacing: Style.space(3)
+
+                    Text {
+                      text: modelData !== null && modelData !== undefined ? modelData.value : ""
+                      color: root.foreground
+                      font.family: root.fontFamily
+                      font.bold: true
+                      font.pixelSize: Style.font.body
+                    }
+
+                    Text {
+                      visible: modelData !== null && modelData !== undefined && modelData.delta !== null
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: visible ? root.formatDelta(modelData.delta, modelData.deltaDecimals) : ""
+                      color: root.deltaColor(modelData.delta, modelData.higherIsBetter)
+                      font.family: root.fontFamily
+                      font.bold: true
+                      font.pixelSize: Style.font.caption
+                    }
                   }
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -476,26 +557,38 @@ Panel {
                 {
                   label: "XHAIR",
                   value: root.formatNumber(root.stats.crosshairPlacement, 1) + "°",
+                  delta: root.metricDelta(root.stats.crosshairPlacement, root.comparisonStats ? root.comparisonStats.crosshairPlacement : null),
+                  deltaDecimals: 1,
+                  higherIsBetter: false,
                   title: "Crosshair Placement",
-                  tooltip: "Median aim movement from first visibility to first damage.\nLower is better; 0° means already on target.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
+                  tooltip: "Median aim movement from first visibility to first damage.\nLower is better; 0° means already on target.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels.\nChange is compared with your previous game."
                 },
                 {
                   label: "TTD",
                   value: root.formatNumber(root.stats.timeToDamageMs, 0) + "ms",
+                  delta: root.metricDelta(root.stats.timeToDamageMs, root.comparisonStats ? root.comparisonStats.timeToDamageMs : null),
+                  deltaDecimals: 0,
+                  higherIsBetter: false,
                   title: "Time to Damage",
-                  tooltip: "Median time from first visibility to first damage.\nLower is generally better; duels over one second are excluded.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels."
+                  tooltip: "Median time from first visibility to first damage.\nLower is generally better; duels over one second are excluded.\nBased on " + root.stats.mechanicsEngagements + " qualifying duels.\nChange is compared with your previous game."
                 },
                 {
                   label: "SPOT ACC",
                   value: root.formatNumber(root.stats.spottedAccuracy, 0) + "%",
+                  delta: root.metricDelta(root.stats.spottedAccuracy, root.comparisonStats ? root.comparisonStats.spottedAccuracy : null),
+                  deltaDecimals: 0,
+                  higherIsBetter: true,
                   title: "Spotted Accuracy",
-                  tooltip: "Shots that hit ÷ shots fired while an enemy was visible.\nHigher is better. Based on " + root.stats.spottedShots + " shots."
+                  tooltip: "Shots that hit ÷ shots fired while an enemy was visible.\nHigher is better. Based on " + root.stats.spottedShots + " shots.\nChange is compared with your previous game."
                 },
                 {
                   label: "COUNTER",
                   value: root.formatNumber(root.stats.counterStrafePercent, 0) + "%",
+                  delta: root.metricDelta(root.stats.counterStrafePercent, root.comparisonStats ? root.comparisonStats.counterStrafePercent : null),
+                  deltaDecimals: 0,
+                  higherIsBetter: true,
                   title: "Counter-Strafe",
-                  tooltip: "Uncrouched rifle shots fired below 34% max movement speed.\nHigher is better. Based on " + root.stats.counterStrafeShots + " shots."
+                  tooltip: "Uncrouched rifle shots fired below 34% max movement speed.\nHigher is better. Based on " + root.stats.counterStrafeShots + " shots.\nChange is compared with your previous game."
                 }
               ] : []
 
@@ -510,13 +603,28 @@ Panel {
                 Column {
                   anchors.centerIn: parent
                   spacing: Style.space(2)
-                  Text {
+
+                  Row {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: modelData !== null && modelData !== undefined ? modelData.value : ""
-                    color: root.foreground
-                    font.family: root.fontFamily
-                    font.bold: true
-                    font.pixelSize: Style.font.body
+                    spacing: Style.space(3)
+
+                    Text {
+                      text: modelData !== null && modelData !== undefined ? modelData.value : ""
+                      color: root.foreground
+                      font.family: root.fontFamily
+                      font.bold: true
+                      font.pixelSize: Style.font.body
+                    }
+
+                    Text {
+                      visible: modelData !== null && modelData !== undefined && modelData.delta !== null
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: visible ? root.formatDelta(modelData.delta, modelData.deltaDecimals) : ""
+                      color: root.deltaColor(modelData.delta, modelData.higherIsBetter)
+                      font.family: root.fontFamily
+                      font.bold: true
+                      font.pixelSize: Style.font.caption
+                    }
                   }
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -929,6 +1037,15 @@ Panel {
             }
           }
         }
+        }
+      }
+
+      Column {
+        id: footer
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        spacing: Style.space(8)
 
         Button {
           width: parent.width

@@ -303,6 +303,8 @@ class AutoFetcher:
                 demo = decompress_demo(compressed, self.game_state.heavy_work_allowed)
             self.record(status="parsing", current=demo.name)
             parse_demo(demo, self.game_state.heavy_work_allowed)
+            demo.unlink(missing_ok=True)
+            compressed.unlink(missing_ok=True)
             self.state["queue"].pop(0)
             self.record(status="idle", current="", lastImportedAt=utc_now())
 

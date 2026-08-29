@@ -1,4 +1,16 @@
+import sqlite3
+
+import pytest
+
 from omarcs.storage import Store
+
+
+def test_context_manager_closes_connection(tmp_path) -> None:
+    with Store(tmp_path) as store:
+        connection = store.connection
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connection.execute("SELECT 1")
 
 
 def sample_match(match_id: str, played_at: str, result: str, rating: float) -> dict:

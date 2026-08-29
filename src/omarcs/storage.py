@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 from .config import state_home
@@ -40,6 +41,17 @@ class Store:
             """
         )
         self.connection.commit()
+
+    def __enter__(self) -> Store:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def close(self) -> None:
         self.connection.close()
