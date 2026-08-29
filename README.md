@@ -59,6 +59,15 @@ Import a demo directly (also useful for testing):
 omarcs import ~/Downloads/match.dem
 ```
 
+The performance-focused Rust backend is being migrated behind the existing QML/JSON seam. Build and exercise its parser and Match Facts normalization without changing the active plugin backend:
+
+```bash
+cargo build --release -p omarcs-native
+target/release/omarcs-native probe ~/Downloads/match.dem --pretty
+target/release/omarcs-native facts ~/Downloads/match.dem --pretty
+target/release/omarcs-native stats ~/Downloads/match.dem "Player name" --pretty
+```
+
 omarCS detects the most recently used local Steam account. If the demo belongs to another account, select it by SteamID64 or exact in-demo name:
 
 ```bash
