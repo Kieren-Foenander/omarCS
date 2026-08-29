@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "omarcs.stats",
+  "name": "omarCS",
+  "version": "0.1.0",
+  "author": "Kieren",
+  "license": "MIT",
+  "description": "Recent CS2 match stats and local coaching insights.",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "omarCS",
+    "description": "Latest CS2 result, performance trends, and coaching notes.",
+    "category": "Gaming",
+    "aliases": ["cs2", "counter-strike", "stats"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshMinutes": 30
+    },
+    "schema": [
+      {
+        "key": "refreshMinutes",
+        "type": "integer",
+        "label": "Demo scan interval (minutes)",
+        "min": 5,
+        "max": 240,
+        "step": 5,
+        "defaultValue": 30
+      }
+    ]
+  }
+}
+
