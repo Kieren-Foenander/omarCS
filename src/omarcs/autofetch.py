@@ -321,7 +321,13 @@ def run_daemon() -> int:
     game_state = GameState()
     server = start_gsi_server(game_state)
     fetcher = AutoFetcher(game_state)
-    fetcher.record(status="idle", pid=os.getpid(), gsi=f"http://{GSI_HOST}:{GSI_PORT}/gsi")
+    fetcher.record(
+        status="idle",
+        pid=os.getpid(),
+        gsi=f"http://{GSI_HOST}:{GSI_PORT}/gsi",
+        gamePhase="unknown",
+        error="",
+    )
     next_poll = time.monotonic() + 15
     handled_gameover: float | None = None
     burst_until = 0.0
