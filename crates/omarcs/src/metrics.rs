@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use serde::Serialize;
 
-use crate::match_facts::{KillFact, MatchFacts, PlayerId, Side};
+use crate::match_facts::{KillFact, MatchFacts, PlayerId, Side, round_index_for_tick};
 
 const CS2_TICKS_PER_SECOND: i32 = 64;
 const TRADE_WINDOW_SECONDS: i32 = 5;
@@ -90,7 +90,7 @@ pub fn calculate(facts: &MatchFacts, player: PlayerId) -> PlayerMetrics {
     let mut round_events = vec![RoundEvents::default(); facts.rounds.len()];
     let mut first_kill_by_round = BTreeMap::<usize, &KillFact>::new();
     for (source_index, kill) in &enemy_kills {
-        let Some(round_index) = round_index_for_tick(facts, kill.tick) else {
+        let Some(round_index) = round_index_for_tick(&facts.rounds, kill.tick) else {
             continue;
         };
         first_kill_by_round
@@ -249,7 +249,7 @@ fn trade_flags(
     let mut trade_kills = BTreeSet::new();
     let mut by_round = BTreeMap::<usize, Vec<(usize, &KillFact)>>::new();
     for (source_index, kill) in kills {
-        if let Some(round_index) = round_index_for_tick(facts, kill.tick) {
+        if let Some(round_index) = round_index_for_tick(&facts.rounds, kill.tick) {
             by_round
                 .entry(round_index)
                 .or_default()
@@ -284,21 +284,38 @@ fn trade_flags(
     (traded_deaths, trade_kills)
 }
 
-fn round_index_for_tick(facts: &MatchFacts, tick: i32) -> Option<usize> {
-    let index = facts
-        .rounds
-        .partition_point(|round| round.start_tick <= tick)
-        .checked_sub(1)?;
-    (tick <= facts.rounds[index].official_end_tick).then_some(index)
+fn infer_round_sides(facts: &MatchFacts, player: PlayerId) -> BTreeMap<usize, Side> {
+    let mut sides = facts.ticks.majority_sides(player);
+    if sides.is_empty() {
+        sides = event_round_sides(facts, player);
+    }
+
+    // A player can complete a round without producing a combat event (for
+    // example, an untouched survivor). Tick observations cover that case;
+    // event-derived sides still fill the nearest known round if a round has
+    // no observation for this player.
+    for round_index in 0..facts.rounds.len() {
+        if sides.contains_key(&round_index) {
+            continue;
+        }
+        let nearest = sides
+            .iter()
+            .min_by_key(|(known_round, _)| known_round.abs_diff(round_index))
+            .map(|(_, side)| *side);
+        if let Some(side) = nearest {
+            sides.insert(round_index, side);
+        }
+    }
+    sides
 }
 
-fn infer_round_sides(facts: &MatchFacts, player: PlayerId) -> BTreeMap<usize, Side> {
+fn event_round_sides(facts: &MatchFacts, player: PlayerId) -> BTreeMap<usize, Side> {
     let mut counts = BTreeMap::<(usize, Side), usize>::new();
     let mut observe = |tick: i32, candidate: Option<PlayerId>, side: Side| {
         if candidate != Some(player) || side == Side::Unknown {
             return;
         }
-        if let Some(round_index) = round_index_for_tick(facts, tick) {
+        if let Some(round_index) = round_index_for_tick(&facts.rounds, tick) {
             *counts.entry((round_index, side)).or_default() += 1;
         }
     };
@@ -327,28 +344,10 @@ fn infer_round_sides(facts: &MatchFacts, player: PlayerId) -> BTreeMap<usize, Si
             result.insert(round_index, (side, count));
         }
     }
-    let mut sides = result
+    result
         .into_iter()
         .map(|(round_index, (side, _))| (round_index, side))
-        .collect::<BTreeMap<_, _>>();
-
-    // A player can complete a round without producing a combat event (for
-    // example, an untouched survivor). Until tick observations are compacted
-    // into Match Facts, use their closest observed round rather than dropping
-    // that round from the score.
-    for round_index in 0..facts.rounds.len() {
-        if sides.contains_key(&round_index) {
-            continue;
-        }
-        let nearest = sides
-            .iter()
-            .min_by_key(|(known_round, _)| known_round.abs_diff(round_index))
-            .map(|(_, side)| *side);
-        if let Some(side) = nearest {
-            sides.insert(round_index, side);
-        }
-    }
-    sides
+        .collect()
 }
 
 fn is_utility_weapon(weapon: &str) -> bool {
@@ -373,6 +372,7 @@ fn round_to(value: f64, places: i32) -> f64 {
 mod tests {
     use super::*;
     use crate::match_facts::{BlindFact, DamageFact, PlayerFact, RoundFact, ShotFact};
+    use crate::ticks::{TickObservations, TickSample};
 
     const PLAYER: PlayerId = PlayerId(76_561_198_000_000_001);
     const TEAMMATE: PlayerId = PlayerId(76_561_198_000_000_002);
@@ -437,38 +437,86 @@ mod tests {
         ];
         kills[0].headshot = true;
         kills[1].assister = Some(PLAYER);
+        let rounds = vec![
+            RoundFact {
+                number: 1,
+                start_tick: 0,
+                freeze_end_tick: None,
+                end_tick: 500,
+                official_end_tick: 600,
+                winner: Side::CounterTerrorist,
+            },
+            RoundFact {
+                number: 2,
+                start_tick: 900,
+                freeze_end_tick: None,
+                end_tick: 1400,
+                official_end_tick: 1500,
+                winner: Side::Terrorist,
+            },
+            RoundFact {
+                number: 3,
+                start_tick: 1900,
+                freeze_end_tick: None,
+                end_tick: 2400,
+                official_end_tick: 2500,
+                winner: Side::CounterTerrorist,
+            },
+        ];
+        let ticks = TickObservations::from_samples(
+            [
+                TickSample {
+                    tick: 50,
+                    player: PLAYER,
+                    side: Side::CounterTerrorist,
+                    health: 100,
+                    origin: [0.0; 3],
+                    pitch: 0.0,
+                    yaw: 0.0,
+                    duck_amount: 0.0,
+                    velocity: 0.0,
+                    shots_fired: 0,
+                    weapon: "ak47".to_owned(),
+                    spotted_by: vec![],
+                },
+                TickSample {
+                    tick: 950,
+                    player: PLAYER,
+                    side: Side::Terrorist,
+                    health: 100,
+                    origin: [0.0; 3],
+                    pitch: 0.0,
+                    yaw: 0.0,
+                    duck_amount: 0.0,
+                    velocity: 0.0,
+                    shots_fired: 0,
+                    weapon: "ak47".to_owned(),
+                    spotted_by: vec![],
+                },
+                TickSample {
+                    tick: 1950,
+                    player: PLAYER,
+                    side: Side::Terrorist,
+                    health: 100,
+                    origin: [0.0; 3],
+                    pitch: 0.0,
+                    yaw: 0.0,
+                    duck_amount: 0.0,
+                    velocity: 0.0,
+                    shots_fired: 0,
+                    weapon: "ak47".to_owned(),
+                    spotted_by: vec![],
+                },
+            ],
+            &rounds,
+        );
         MatchFacts {
             map: "de_test".to_owned(),
             players: vec![PlayerFact {
                 steam_id: PLAYER,
                 name: "Kieren".to_owned(),
             }],
-            rounds: vec![
-                RoundFact {
-                    number: 1,
-                    start_tick: 0,
-                    freeze_end_tick: None,
-                    end_tick: 500,
-                    official_end_tick: 600,
-                    winner: Side::CounterTerrorist,
-                },
-                RoundFact {
-                    number: 2,
-                    start_tick: 900,
-                    freeze_end_tick: None,
-                    end_tick: 1400,
-                    official_end_tick: 1500,
-                    winner: Side::Terrorist,
-                },
-                RoundFact {
-                    number: 3,
-                    start_tick: 1900,
-                    freeze_end_tick: None,
-                    end_tick: 2400,
-                    official_end_tick: 2500,
-                    winner: Side::CounterTerrorist,
-                },
-            ],
+            rounds,
             kills,
             damages: vec![
                 DamageFact {
@@ -538,6 +586,7 @@ mod tests {
                 },
             ],
             bullets: vec![],
+            ticks,
             tick_rows: 0,
         }
     }
@@ -572,5 +621,32 @@ mod tests {
         );
         assert_eq!(resolve_player(&facts, "kIeReN").unwrap(), PLAYER);
         assert!(resolve_player(&facts, "missing").is_err());
+    }
+
+    #[test]
+    fn round_score_uses_tick_observation_sides_over_event_sides() {
+        let mut facts = fixture();
+        facts.ticks = TickObservations::from_samples(
+            [TickSample {
+                tick: 50,
+                player: PLAYER,
+                side: Side::Terrorist,
+                health: 100,
+                origin: [0.0; 3],
+                pitch: 0.0,
+                yaw: 0.0,
+                duck_amount: 0.0,
+                velocity: 0.0,
+                shots_fired: 0,
+                weapon: "ak47".to_owned(),
+                spotted_by: vec![],
+            }],
+            &facts.rounds,
+        );
+
+        let stats = calculate(&facts, PLAYER);
+        assert_eq!(stats.rounds_for, 1);
+        assert_eq!(stats.rounds_against, 2);
+        assert_eq!(stats.result, "L");
     }
 }

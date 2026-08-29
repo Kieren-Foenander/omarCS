@@ -1,6 +1,7 @@
 mod match_facts;
 mod metrics;
 mod parser_adapter;
+mod ticks;
 
 use std::path::PathBuf;
 

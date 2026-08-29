@@ -5,6 +5,8 @@ use parser::second_pass::game_events::GameEvent;
 use parser::second_pass::variants::Variant;
 use serde::Serialize;
 
+use crate::ticks::TickObservations;
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct PlayerId(pub u64);
@@ -19,6 +21,14 @@ pub enum Side {
 }
 
 impl Side {
+    pub(crate) fn from_team_num(value: u32) -> Self {
+        match value {
+            2 => Self::Terrorist,
+            3 => Self::CounterTerrorist,
+            _ => Self::Unknown,
+        }
+    }
+
     fn parse(value: Option<&Variant>) -> Self {
         match value.and_then(as_string).as_deref() {
             Some("T") | Some("TERRORIST") => Self::Terrorist,
@@ -131,6 +141,7 @@ pub struct MatchFacts {
     pub blinds: Vec<BlindFact>,
     pub shots: Vec<ShotFact>,
     pub bullets: Vec<BulletFact>,
+    pub ticks: TickObservations,
     pub tick_rows: usize,
 }
 
@@ -141,6 +152,7 @@ pub struct MatchFactsSummary {
     pub demo_bytes: usize,
     pub parser_elapsed_ms: f64,
     pub tick_rows: usize,
+    pub tick_observations: usize,
     pub players: Vec<PlayerFact>,
     pub rounds: usize,
     pub kills: usize,
@@ -234,6 +246,7 @@ impl MatchFacts {
 
         round_markers.sort_by_key(|marker| marker.tick);
         let rounds = reconstruct_rounds(round_markers);
+        let ticks = TickObservations::from_demo(&output, &rounds, &mut players);
         let players = players
             .into_iter()
             .map(|(steam_id, name)| PlayerFact { steam_id, name })
@@ -248,6 +261,7 @@ impl MatchFacts {
             blinds,
             shots,
             bullets,
+            ticks,
             tick_rows,
         }
     }
@@ -258,6 +272,7 @@ impl MatchFacts {
             demo_bytes,
             parser_elapsed_ms,
             tick_rows: self.tick_rows,
+            tick_observations: self.ticks.len(),
             players: self.players,
             rounds: self.rounds.len(),
             kills: self.kills.len(),
@@ -327,6 +342,13 @@ fn reconstruct_rounds(markers: Vec<RoundMarker>) -> Vec<RoundFact> {
     }
     finish(pending, &mut rounds);
     rounds
+}
+
+pub(crate) fn round_index_for_tick(rounds: &[RoundFact], tick: i32) -> Option<usize> {
+    let index = rounds
+        .partition_point(|round| round.start_tick <= tick)
+        .checked_sub(1)?;
+    (tick <= rounds[index].official_end_tick).then_some(index)
 }
 
 fn round_marker(event: &GameEvent, kind: RoundMarkerKind) -> RoundMarker {
@@ -505,6 +527,9 @@ mod tests {
         assert_eq!(side(&hurt, "attacker_team_name"), Side::CounterTerrorist);
         assert_eq!(side(&hurt, "user_team_name"), Side::Terrorist);
         assert_eq!(real_damage(&hurt), 24);
+        assert_eq!(Side::from_team_num(2), Side::Terrorist);
+        assert_eq!(Side::from_team_num(3), Side::CounterTerrorist);
+        assert_eq!(Side::from_team_num(1), Side::Unknown);
     }
 
     #[test]
@@ -541,6 +566,15 @@ mod tests {
         assert_eq!(facts.blinds.len(), 72);
         assert_eq!(facts.shots.len(), 1_590);
         assert_eq!(facts.bullets.len(), 1_242);
+        assert_eq!(facts.ticks.len(), 565_963);
+        assert_eq!(facts.ticks.unique_players().len(), 10);
+        for index in 0..facts.ticks.len() {
+            assert!(facts.ticks.round_index(index) < facts.rounds.len());
+            assert_ne!(facts.ticks.side(index), Side::Unknown);
+        }
+        let player = facts.players[0].steam_id;
+        let sides = facts.ticks.majority_sides(player);
+        assert_eq!(sides.len(), facts.rounds.len());
     }
 
     #[test]

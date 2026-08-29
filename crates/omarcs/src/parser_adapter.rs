@@ -5,7 +5,7 @@ use std::time::Instant;
 use ahash::AHashMap;
 use anyhow::{Context, Result};
 use memmap2::MmapOptions;
-use parser::first_pass::parser_settings::ParserInputs;
+use parser::first_pass::parser_settings::{ParserInputs, rm_user_friendly_names};
 use parser::parse_demo::{DemoOutput, Parser, ParsingMode};
 use parser::second_pass::parser_settings::create_huffman_lookup_table;
 use serde::Serialize;
@@ -63,15 +63,12 @@ pub fn parse(path: &Path) -> Result<ParsedDemo> {
     let mmap = unsafe { MmapOptions::new().map(&file) }
         .with_context(|| format!("mapping {}", path.display()))?;
     let huffman = create_huffman_lookup_table();
-    let properties = PLAYER_PROPERTIES
-        .iter()
-        .map(|property| (*property).to_owned())
-        .collect::<Vec<_>>();
+    let (properties, real_name_to_og_name) = player_properties()?;
     let settings = ParserInputs {
-        wanted_player_props: properties.clone(),
+        wanted_player_props: properties,
         wanted_events: EVENTS.iter().map(|event| (*event).to_owned()).collect(),
-        real_name_to_og_name: AHashMap::default(),
-        wanted_other_props: properties,
+        real_name_to_og_name,
+        wanted_other_props: Vec::new(),
         parse_ents: true,
         wanted_players: Vec::new(),
         wanted_ticks: Vec::new(),
@@ -108,9 +105,11 @@ pub fn probe(path: &Path) -> Result<ParserProbe> {
         .map(|id| {
             output
                 .prop_controller
-                .id_to_name
-                .get(id)
-                .cloned()
+                .prop_infos
+                .iter()
+                .find(|info| info.id == *id)
+                .map(|info| info.prop_friendly_name.clone())
+                .or_else(|| output.prop_controller.id_to_name.get(id).cloned())
                 .or_else(|| {
                     output
                         .prop_controller
@@ -144,4 +143,41 @@ pub fn probe(path: &Path) -> Result<ParserProbe> {
         columns,
         elapsed_ms: parsed.elapsed_ms,
     })
+}
+
+fn player_properties() -> Result<(Vec<String>, AHashMap<String, String>)> {
+    let friendly = PLAYER_PROPERTIES
+        .iter()
+        .map(|property| (*property).to_owned())
+        .collect::<Vec<_>>();
+    let real = rm_user_friendly_names(&friendly)
+        .map_err(|error| anyhow::anyhow!("resolving player properties: {error}"))?;
+    let map = real
+        .iter()
+        .zip(friendly)
+        .map(|(real_name, friendly_name)| (real_name.clone(), friendly_name))
+        .collect();
+    Ok((real, map))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_friendly_tick_properties_to_parser_names() {
+        let (real, map) = player_properties().unwrap();
+        assert!(real.contains(&"CCSPlayerPawn.m_iHealth".to_owned()));
+        assert!(real.contains(&"CCSPlayerPawn.m_iTeamNum".to_owned()));
+        assert!(real.contains(&"weapon_name".to_owned()));
+        assert_eq!(
+            map.get("CCSPlayerPawn.m_iTeamNum").map(String::as_str),
+            Some("team_num")
+        );
+        assert_eq!(
+            map.get("CCSPlayerPawn.m_bSpottedByMask")
+                .map(String::as_str),
+            Some("approximate_spotted_by")
+        );
+    }
 }

@@ -10,8 +10,9 @@ omarCS optimizes elapsed time from discovering a new Demo to publishing its Matc
 - Fixture parser checksum: `dd96a2cc68cd6886`
 - Local reference, requested properties plus all events: 0.126 seconds median, multithreaded release build
 - Local `source2-demo` 0.5.8 comparison: 0.368 seconds median with its `unsafe` feature, entity state, all events, and per-tick player scans
-- Vendored omarCS-focused parse: approximately 0.108 seconds median for 579,700 tick rows and 3,279 requested events
-- Native parse plus core player statistics: approximately 0.13 seconds wall time on the same fixture
+- Vendored omarCS-focused parse: approximately 0.108 seconds median for 579,700 tick rows and 3,279 requested events when only special parser columns were collected
+- The same parse with friendly player properties resolved (health, team, spotted-by, weapon, duck, shots): approximately 0.14 seconds, then compacted to 565,963 tick observations
+- Native parse plus core player statistics: approximately 0.13 seconds wall time on the same fixture before tick compaction; compacting observations is now part of the Match Facts path
 
 These wall-clock figures describe the development machine and are not portable CI assertions. Regression gates should compare revisions on the same machine and fixture.
 
@@ -23,10 +24,13 @@ These wall-clock figures describe the development machine and are not portable C
 4. The QML-facing Dashboard Summary schema must remain compatible throughout migration.
 
 Core player statistics now have a Rust parity fixture covering K/D/A, ADR,
-KAST, rating, headshots, openings, trades, utility, flashes, and score. Exact
-round-side attribution still needs the compact tick-observation adapter before
-the production launcher can switch; event-derived sides are currently used by
-the native `stats` command.
+KAST, rating, headshots, openings, trades, utility, flashes, and score. Round
+sides come from compact tick observations assigned to reconstructed rounds;
+event-derived sides remain only as a fallback when observations are absent.
+
+The compact adapter reads the parser dataframe once, then drops spectators,
+steamid 0, and ticks outside reconstructed rounds. Weapons are interned and
+spotted-by lists are flattened. In-parser accumulation is still future work.
 
 Set `OMARCS_DEMO_FIXTURE` to a compatible local Demo when running real-demo parity tests. Large Demo files are deliberately not committed to this repository.
 
