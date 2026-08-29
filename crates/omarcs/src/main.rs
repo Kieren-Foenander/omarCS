@@ -2,6 +2,7 @@ mod match_facts;
 mod mechanics;
 mod metrics;
 mod parser_adapter;
+mod spray;
 mod ticks;
 
 use std::path::PathBuf;
@@ -40,6 +41,14 @@ enum Command {
     },
     /// Calculate native Engagement mechanics for one player.
     Mechanics {
+        demo: PathBuf,
+        /// SteamID64 or exact in-demo player name.
+        player: String,
+        #[arg(long)]
+        pretty: bool,
+    },
+    /// Calculate native Sprays for one player.
+    Sprays {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
         player: String,
@@ -97,6 +106,21 @@ fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&stats)?);
             } else {
                 println!("{}", serde_json::to_string(&stats)?);
+            }
+        }
+        Command::Sprays {
+            demo,
+            player,
+            pretty,
+        } => {
+            let parsed = parser_adapter::parse(&demo)?;
+            let facts = match_facts::MatchFacts::from_output(parsed.output);
+            let player = metrics::resolve_player(&facts, &player)?;
+            let sprays = spray::calculate(&facts, player);
+            if pretty {
+                println!("{}", serde_json::to_string_pretty(&sprays)?);
+            } else {
+                println!("{}", serde_json::to_string(&sprays)?);
             }
         }
     }
