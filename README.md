@@ -66,6 +66,7 @@ cargo build --release -p omarcs-native
 target/release/omarcs-native probe ~/Downloads/match.dem --pretty
 target/release/omarcs-native facts ~/Downloads/match.dem --pretty
 target/release/omarcs-native stats ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs-native mechanics ~/Downloads/match.dem "Player name" --pretty
 ```
 
 omarCS detects the most recently used local Steam account. If the demo belongs to another account, select it by SteamID64 or exact in-demo name:

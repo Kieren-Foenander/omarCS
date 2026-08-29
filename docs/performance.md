@@ -28,6 +28,12 @@ KAST, rating, headshots, openings, trades, utility, flashes, and score. Round
 sides come from compact tick observations assigned to reconstructed rounds;
 event-derived sides remain only as a fallback when observations are absent.
 
+Engagement metrics now have a Rust parity fixture covering exposures,
+crosshair correction, first-shot time, time-to-damage, spotted accuracy, and
+counter-strafing on the radar-beta path. Map-geometry visibility is still
+future work; without a mesh the native path uses spotted-by observations the
+same way Python does.
+
 The compact adapter reads the parser dataframe once, then drops spectators,
 steamid 0, and ticks outside reconstructed rounds. Weapons are interned and
 spotted-by lists are flattened. In-parser accumulation is still future work.

@@ -1,4 +1,5 @@
 mod match_facts;
+mod mechanics;
 mod metrics;
 mod parser_adapter;
 mod ticks;
@@ -37,6 +38,14 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+    /// Calculate native Engagement mechanics for one player.
+    Mechanics {
+        demo: PathBuf,
+        /// SteamID64 or exact in-demo player name.
+        player: String,
+        #[arg(long)]
+        pretty: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -69,6 +78,21 @@ fn main() -> Result<()> {
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
             let stats = metrics::calculate(&facts, player);
+            if pretty {
+                println!("{}", serde_json::to_string_pretty(&stats)?);
+            } else {
+                println!("{}", serde_json::to_string(&stats)?);
+            }
+        }
+        Command::Mechanics {
+            demo,
+            player,
+            pretty,
+        } => {
+            let parsed = parser_adapter::parse(&demo)?;
+            let facts = match_facts::MatchFacts::from_output(parsed.output);
+            let player = metrics::resolve_player(&facts, &player)?;
+            let stats = mechanics::calculate(&facts, player);
             if pretty {
                 println!("{}", serde_json::to_string_pretty(&stats)?);
             } else {

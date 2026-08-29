@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::ticks::TickObservations;
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct PlayerId(pub u64);
 
