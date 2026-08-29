@@ -34,6 +34,11 @@ counter-strafing on the radar-beta path. Sprays now have a Rust parity fixture
 covering numbered target-relative AK bursts on that same spotted-by path.
 Coaching notes now have a Rust parity fixture covering the bounded insight
 list from core statistics and radar-beta Engagement metrics.
+A native Match Report now has a Rust parity fixture covering the QML JSON
+seam: analysis version, checksum identity, merged stats and Engagement
+metrics, Sprays, and insights. SteamID64 is a string so JavaScript keeps
+the full value. The Python launcher is unchanged until a real Demo produces
+a golden Match Report.
 Map-geometry visibility is still future work; without a mesh the native path
 uses spotted-by observations the same way Python does.
 

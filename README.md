@@ -69,6 +69,7 @@ target/release/omarcs-native stats ~/Downloads/match.dem "Player name" --pretty
 target/release/omarcs-native mechanics ~/Downloads/match.dem "Player name" --pretty
 target/release/omarcs-native sprays ~/Downloads/match.dem "Player name" --pretty
 target/release/omarcs-native insights ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs-native report ~/Downloads/match.dem "Player name" --pretty
 ```
 
 omarCS detects the most recently used local Steam account. If the demo belongs to another account, select it by SteamID64 or exact in-demo name:

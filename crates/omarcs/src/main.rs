@@ -3,6 +3,7 @@ mod match_facts;
 mod mechanics;
 mod metrics;
 mod parser_adapter;
+mod report;
 mod spray;
 mod ticks;
 
@@ -10,6 +11,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 
 #[derive(Parser)]
 #[command(name = "omarcs-native", about = "Native omarCS backend")]
@@ -64,28 +66,26 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+    /// Assemble a native Match Report for one player.
+    Report {
+        demo: PathBuf,
+        /// SteamID64 or exact in-demo player name.
+        player: String,
+        #[arg(long)]
+        pretty: bool,
+    },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Probe { demo, pretty } => {
-            let probe = parser_adapter::probe(&demo)?;
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&probe)?);
-            } else {
-                println!("{}", serde_json::to_string(&probe)?);
-            }
+            print_json(&parser_adapter::probe(&demo)?, pretty)?;
         }
         Command::Facts { demo, pretty } => {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
-            let summary = facts.summary(parsed.demo_bytes, parsed.elapsed_ms);
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&summary)?);
-            } else {
-                println!("{}", serde_json::to_string(&summary)?);
-            }
+            print_json(&facts.summary(parsed.demo_bytes, parsed.elapsed_ms), pretty)?;
         }
         Command::Stats {
             demo,
@@ -95,12 +95,7 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
-            let stats = metrics::calculate(&facts, player);
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&stats)?);
-            } else {
-                println!("{}", serde_json::to_string(&stats)?);
-            }
+            print_json(&metrics::calculate(&facts, player), pretty)?;
         }
         Command::Mechanics {
             demo,
@@ -110,12 +105,7 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
-            let stats = mechanics::calculate(&facts, player);
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&stats)?);
-            } else {
-                println!("{}", serde_json::to_string(&stats)?);
-            }
+            print_json(&mechanics::calculate(&facts, player), pretty)?;
         }
         Command::Sprays {
             demo,
@@ -125,12 +115,7 @@ fn main() -> Result<()> {
             let parsed = parser_adapter::parse(&demo)?;
             let facts = match_facts::MatchFacts::from_output(parsed.output);
             let player = metrics::resolve_player(&facts, &player)?;
-            let sprays = spray::calculate(&facts, player);
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&sprays)?);
-            } else {
-                println!("{}", serde_json::to_string(&sprays)?);
-            }
+            print_json(&spray::calculate(&facts, player), pretty)?;
         }
         Command::Insights {
             demo,
@@ -142,13 +127,45 @@ fn main() -> Result<()> {
             let player = metrics::resolve_player(&facts, &player)?;
             let stats = metrics::calculate(&facts, player);
             let mechanics = mechanics::calculate(&facts, player);
-            let insights = coaching::calculate(&stats, &mechanics);
-            if pretty {
-                println!("{}", serde_json::to_string_pretty(&insights)?);
-            } else {
-                println!("{}", serde_json::to_string(&insights)?);
-            }
+            print_json(&coaching::calculate(&stats, &mechanics), pretty)?;
         }
+        Command::Report {
+            demo,
+            player,
+            pretty,
+        } => {
+            let checksum = report::checksum_path(&demo)?;
+            let played_at = report::played_at(&demo)?;
+            let path = demo
+                .canonicalize()
+                .unwrap_or_else(|_| demo.clone())
+                .to_string_lossy()
+                .into_owned();
+            let parsed = parser_adapter::parse(&demo)?;
+            let facts = match_facts::MatchFacts::from_output(parsed.output);
+            let player = metrics::resolve_player(&facts, &player)?;
+            print_json(
+                &report::assemble(
+                    &facts,
+                    player,
+                    report::ReportMeta {
+                        path,
+                        checksum,
+                        played_at,
+                    },
+                ),
+                pretty,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn print_json(value: &impl Serialize, pretty: bool) -> Result<()> {
+    if pretty {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    } else {
+        println!("{}", serde_json::to_string(value)?);
     }
     Ok(())
 }
