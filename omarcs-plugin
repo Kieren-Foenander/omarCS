@@ -1,24 +1,136 @@
 #!/usr/bin/env bash
-# Omarchy intentionally does not execute plugin install hooks. This launcher
-# makes first run portable while keeping generated environments out of the
-# plugin checkout.
+# Omarchy intentionally only clones and validates plugins. Fetch the pinned,
+# verified release executable on first use; build this checkout only as a safe
+# fallback for development, unsupported machines, or a release outage.
 set -euo pipefail
 
 plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+cache_home="${XDG_CACHE_HOME:-${HOME}/.cache}"
+install_dir="$data_home/omarcs"
+installed_bin="$install_dir/omarcs"
+version_file="$install_dir/omarcs.version"
+release_version="$(tr -d '[:space:]' < "$plugin_dir/omarcs-release")"
+release_target="x86_64-unknown-linux-musl"
+release_asset="omarcs-${release_target}.tar.gz"
+release_marker="release:${release_version}:${release_target}"
+source_marker="source:${release_version}:$(uname -m)"
+release_base_url="${OMARCS_RELEASE_BASE_URL:-https://github.com/Kieren-Foenander/omarCS/releases/download}"
 
-uv_bin="$(command -v uv || true)"
-if [[ -z "$uv_bin" && -x "${HOME}/.local/bin/uv" ]]; then
-  uv_bin="${HOME}/.local/bin/uv"
+if [[ ! "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "omarCS has an invalid pinned release version: $release_version" >&2
+  exit 2
 fi
 
-if [[ -z "$uv_bin" ]]; then
-  echo "omarCS needs uv to create its local Python environment. Install it once with: omarchy pkg add uv" >&2
-  exit 127
+mkdir -p -- "$install_dir" "$cache_home/omarcs"
+chmod 700 -- "$install_dir" "$cache_home/omarcs"
+
+# QML can start bootstrap and refresh close together. Only one may replace the
+# executable; the others re-check the marker after acquiring the lock.
+exec 9>"$install_dir/.install.lock"
+flock 9
+
+current_marker=""
+if [[ -r "$version_file" ]]; then
+  IFS= read -r current_marker < "$version_file" || true
 fi
 
-# The auto-fetch systemd unit uses this stable launcher rather than a path in
-# uv's cache, so plugin updates are picked up normally. Keep the venv outside
-# the plugin folder because Omarchy rejects symlinks there.
-export OMARCS_COMMAND="$plugin_dir/omarcs-plugin"
-export UV_PROJECT_ENVIRONMENT="${XDG_CACHE_HOME:-$HOME/.cache}/omarcs/venv"
-exec "$uv_bin" run --project "$plugin_dir" --locked omarcs "$@"
+atomic_install() {
+  local source_bin="$1"
+  local marker="$2"
+  local staged_bin staged_version
+
+  staged_bin="$(mktemp "$install_dir/.omarcs.XXXXXX")"
+  staged_version="$(mktemp "$install_dir/.omarcs.version.XXXXXX")"
+  install -m 0755 -- "$source_bin" "$staged_bin"
+  printf '%s\n' "$marker" > "$staged_version"
+  mv -f -- "$staged_bin" "$installed_bin"
+  mv -f -- "$staged_version" "$version_file"
+}
+
+install_release() (
+  set -euo pipefail
+  [[ "$(uname -m)" == "x86_64" ]] || exit 1
+  command -v curl >/dev/null
+  command -v sha256sum >/dev/null
+  command -v tar >/dev/null
+
+  local_tmp="$(mktemp -d "$cache_home/omarcs/release.XXXXXX")"
+  trap 'rm -rf -- "$local_tmp"' EXIT
+
+  archive="$local_tmp/$release_asset"
+  checksum="$archive.sha256"
+  asset_url="$release_base_url/$release_version/$release_asset"
+
+  curl --fail --silent --show-error --location \
+    --proto '=https' --tlsv1.2 --retry 2 --retry-all-errors \
+    --connect-timeout 10 --max-time 180 \
+    --output "$archive" "$asset_url"
+  curl --fail --silent --show-error --location \
+    --proto '=https' --tlsv1.2 --retry 2 --retry-all-errors \
+    --connect-timeout 10 --max-time 60 \
+    --output "$checksum" "$asset_url.sha256"
+
+  expected_hash="$(awk -v asset="$release_asset" \
+    '$2 == asset && $1 ~ /^[0-9a-f]{64}$/ { print $1 }' "$checksum")"
+  [[ "$expected_hash" =~ ^[0-9a-f]{64}$ ]]
+  [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$expected_hash" ]]
+  [[ "$(tar -tzf "$archive")" == "omarcs" ]]
+
+  tar -xzf "$archive" -C "$local_tmp"
+  [[ -f "$local_tmp/omarcs" && ! -L "$local_tmp/omarcs" ]]
+  atomic_install "$local_tmp/omarcs" "$release_marker"
+)
+
+build_from_source() (
+  cargo_bin="$(command -v cargo || true)"
+  if [[ -z "$cargo_bin" ]]; then
+    echo "omarCS could not download $release_version and Rust/cargo is unavailable for the fallback build." >&2
+    exit 127
+  fi
+
+  build_dir="$(mktemp -d "$cache_home/omarcs/build.XXXXXX")"
+  build_log="$build_dir/build.log"
+  trap 'rm -rf -- "$build_dir"' EXIT
+
+  if ! CARGO_TARGET_DIR="$build_dir/target" "$cargo_bin" build --locked --release \
+    --manifest-path "$plugin_dir/Cargo.toml" -p omarcs >"$build_log" 2>&1; then
+    sed -n '1,240p' "$build_log" >&2
+    exit 1
+  fi
+
+  atomic_install "$build_dir/target/release/omarcs" "$source_marker"
+)
+
+cleanup_legacy_plugin_build() {
+  local config_home plugin_root legacy_target
+  config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  plugin_root="$config_home/omarchy/plugins"
+  legacy_target="$plugin_dir/target"
+
+  case "$plugin_dir" in
+    "$plugin_root"/*)
+      if [[ -d "$legacy_target" && ! -L "$legacy_target" ]]; then
+        rm -rf -- "$legacy_target"
+      fi
+      ;;
+  esac
+}
+
+if [[ "${OMARCS_BUILD_FROM_SOURCE:-0}" == "1" ]]; then
+  build_from_source
+elif [[ ! -x "$installed_bin" ||
+  ("$current_marker" != "$release_marker" && "$current_marker" != "$source_marker") ]]; then
+  set +e
+  install_release
+  release_status=$?
+  set -e
+  if ((release_status != 0)); then
+    echo "omarCS release download unavailable; building the checked-out source with Cargo." >&2
+    build_from_source
+  fi
+fi
+
+cleanup_legacy_plugin_build
+flock -u 9
+exec "$installed_bin" "$@"

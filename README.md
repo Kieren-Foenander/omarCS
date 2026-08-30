@@ -3,8 +3,8 @@
 omarCS is a local-first Counter-Strike 2 match dashboard for the Omarchy
 shell. Plugin id: `omarcs.stats`. License: MIT.
 
-It imports CS2 `.dem` files, calculates personal Match Reports with the
-native Rust backend, stores a small local history, and shows the latest
+It imports CS2 `.dem` files, calculates personal Match Reports with its
+Rust executable, stores a small local history, and shows the latest
 result and recent trends in the bar. All demos and derived data stay on
 this computer.
 
@@ -24,19 +24,20 @@ consent to finish setup.
 
 On first open, the widget:
 
-- creates an isolated Python environment under `~/.cache/omarcs/venv`
-- builds `omarcs-native` when that binary is missing
+- downloads the versioned static `omarcs` executable and verifies its SHA-256
+  checksum before installing it atomically
 - downloads SHA-256-pinned CS2 helper archives into `~/.local/share/omarcs/`
 - writes the CS2 Game State Integration file and a user-level systemd
   unit, backing up any existing file it replaces
 - starts `omarcs-autofetch.service` and scans the usual demo folders
+- removes the obsolete Python environment and `omarcs-native` executable after
+  the Rust daemon starts successfully
+- removes the obsolete Cargo `target/` directory from an installed plugin clone
+  after the standalone executable is available
 
-`uv` and `cargo` are required. `uv` is commonly already installed; if the
-widget reports that it is missing:
-
-```bash
-omarchy pkg add uv
-```
+Python and uv are not required. Rust/cargo is only needed as a fallback if the
+release asset is unavailable, on an unsupported CPU architecture, or when a
+developer explicitly requests a source build.
 
 No sudo or pkexec is required. Place the widget with:
 
@@ -65,8 +66,7 @@ Optional leftovers, only if you want them gone too:
   creates this file
 - `gamestate_integration_omarcs.cfg` in the local CS2 `cfg` directory
 - `~/.local/state/omarcs/` — Match Report history
-- `~/.local/share/omarcs/` — demos, helper tools, and the native binary
-- `~/.cache/omarcs/` — Python environment
+- `~/.local/share/omarcs/` — demos, helper tools, and the Rust executable
 
 ## What enabling writes
 
@@ -194,14 +194,15 @@ Downloads API access.
 
 ## Dependencies
 
-Runtime tools, installed by the user:
+The normal x86-64 installation uses a static Rust executable from the release
+pinned in `omarcs-release`. The launcher uses the standard Omarchy tools
+`curl`, `sha256sum`, `tar`, `install`, and `flock`; there is no Python runtime,
+virtual environment, Rust toolchain, or Cargo build cache to install.
 
-| Tool | Why |
-|------|-----|
-| [uv](https://github.com/astral-sh/uv) | Isolated Python environment for the launcher |
-| [Rust/cargo](https://www.rust-lang.org/) | First-time build of `omarcs-native` |
-
-There are no PyPI runtime dependencies. Python 3.12+ is pulled in by uv.
+If the release cannot be downloaded, the launcher can use an existing Cargo
+installation to build the checked-out source in a temporary cache directory.
+That directory is removed after installation. Set `OMARCS_BUILD_FROM_SOURCE=1`
+to deliberately exercise this path.
 
 First enable also downloads these SHA-256-pinned GitHub release zips into
 `~/.local/share/omarcs/` (not piped to a shell):
@@ -232,26 +233,38 @@ permissions. Marketplace listing approval is not a security review.
 
 ## Local development
 
-Keep uv's environment outside the plugin directory because Omarchy
-rejects symlinks inside plugin folders:
+One Rust executable owns scanning, storage, the Dashboard Summary, automatic
+Demo intake, and Match Report calculation:
 
 ```bash
 omarchy plugin validate .
-UV_PROJECT_ENVIRONMENT="${XDG_CACHE_HOME:-$HOME/.cache}/omarcs/venv" uv sync
-UV_PROJECT_ENVIRONMENT="${XDG_CACHE_HOME:-$HOME/.cache}/omarcs/venv" uv run pytest
+cargo test -p omarcs
+cargo build --release -p omarcs
+target/release/omarcs probe ~/Downloads/match.dem --pretty
+target/release/omarcs facts ~/Downloads/match.dem --pretty
+target/release/omarcs stats ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs mechanics ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs sprays ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs insights ~/Downloads/match.dem "Player name" --pretty
+target/release/omarcs report ~/Downloads/match.dem "Player name" --pretty
 ```
 
-The plugin launcher still owns scanning, storage, and the Dashboard
-Summary. Match Report calculation runs through `omarcs-native report`.
-First-time setup builds that binary when it is missing:
+To test the plugin launcher against local source instead of its pinned release:
 
 ```bash
-cargo build --release -p omarcs-native
-target/release/omarcs-native probe ~/Downloads/match.dem --pretty
-target/release/omarcs-native facts ~/Downloads/match.dem --pretty
-target/release/omarcs-native stats ~/Downloads/match.dem "Player name" --pretty
-target/release/omarcs-native mechanics ~/Downloads/match.dem "Player name" --pretty
-target/release/omarcs-native sprays ~/Downloads/match.dem "Player name" --pretty
-target/release/omarcs-native insights ~/Downloads/match.dem "Player name" --pretty
-target/release/omarcs-native report ~/Downloads/match.dem "Player name" --pretty
+OMARCS_BUILD_FROM_SOURCE=1 ./omarcs-plugin --help
 ```
+
+## Releasing
+
+Keep the package version in `crates/omarcs/Cargo.toml` and the `v`-prefixed
+version in `omarcs-release` in sync. Commit the complete release, tag that exact
+commit with the same value (for example `v0.1.0`), then push the tag.
+
+The release workflow tests the workspace, builds a static
+`x86_64-unknown-linux-musl` executable, packages it with a checksum, creates a
+build-provenance attestation, and publishes both files to the GitHub Release.
+This repository has GitHub release immutability enabled, so the published tag
+and assets cannot subsequently be replaced. If a plugin update briefly reaches
+a user before its release workflow finishes, the Cargo fallback builds the
+same checked-out source.

@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::Serialize;
 
-use crate::match_facts::{round_index_for_tick, KillFact, MatchFacts, PlayerId, Side};
+use crate::match_facts::{KillFact, MatchFacts, PlayerId, Side, round_index_for_tick};
 
 const CS2_TICKS_PER_SECOND: i32 = 64;
 const TRADE_WINDOW_SECONDS: i32 = 5;

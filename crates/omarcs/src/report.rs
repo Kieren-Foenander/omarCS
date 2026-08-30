@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn checksum_matches_python_sha256_hex() {
         let directory = std::env::temp_dir();
-        let path = directory.join("omarcs-native-report-checksum.dem");
+        let path = directory.join("omarcs-report-checksum.dem");
         std::fs::write(&path, b"hello").expect("write fixture");
         let digest = checksum_path(&path).expect("checksum");
         std::fs::remove_file(&path).ok();
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn played_at_matches_python_isoformat_seconds() {
         let directory = std::env::temp_dir();
-        let path = directory.join("omarcs-native-report-played-at.dem");
+        let path = directory.join("omarcs-report-played-at.dem");
         std::fs::write(&path, b"hello").expect("write fixture");
         let stamp = played_at(&path).expect("played_at");
         std::fs::remove_file(&path).ok();

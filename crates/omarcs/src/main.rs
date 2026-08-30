@@ -1,4 +1,7 @@
+mod application;
+mod autofetch;
 mod coaching;
+mod config;
 mod geometry;
 mod match_facts;
 mod mechanics;
@@ -6,16 +9,18 @@ mod metrics;
 mod parser_adapter;
 mod report;
 mod spray;
+mod storage;
 mod ticks;
 
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use serde::Serialize;
 
 #[derive(Parser)]
-#[command(name = "omarcs-native", about = "Native omarCS backend")]
+#[command(name = "omarcs", about = "Local CS2 match analysis for Omarchy")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -23,7 +28,41 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Exercise the native demo parser and report the extracted shape.
+    /// Import one Demo or a directory of Demos.
+    Import {
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// SteamID64 or exact in-demo player name.
+        #[arg(long)]
+        player: Option<String>,
+        #[arg(long)]
+        quiet: bool,
+    },
+    /// Scan configured Demo directories.
+    Refresh {
+        /// SteamID64 or exact in-demo player name.
+        #[arg(long)]
+        player: Option<String>,
+        #[arg(long)]
+        quiet: bool,
+    },
+    /// Print the current Dashboard Summary.
+    Status {
+        #[arg(long)]
+        pretty: bool,
+    },
+    /// Install and enable automatic Valve Demo fetching.
+    SetupAuto,
+    #[command(hide = true)]
+    Bootstrap,
+    #[command(hide = true)]
+    AutoRun,
+    /// Print automatic fetcher state.
+    AutoStatus {
+        #[arg(long)]
+        pretty: bool,
+    },
+    /// Exercise the Demo parser and report the extracted shape.
     Probe {
         demo: PathBuf,
         #[arg(long)]
@@ -35,7 +74,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Calculate the native core statistics for one player.
+    /// Calculate the core statistics for one player.
     Stats {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
@@ -43,7 +82,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Calculate native Engagement mechanics for one player.
+    /// Calculate Engagement mechanics for one player.
     Mechanics {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
@@ -51,7 +90,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Calculate native Sprays for one player.
+    /// Calculate Sprays for one player.
     Sprays {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
@@ -59,7 +98,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Calculate native coaching insights for one player.
+    /// Calculate coaching insights for one player.
     Insights {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
@@ -67,7 +106,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Assemble a native Match Report for one player.
+    /// Assemble a Match Report for one player.
     Report {
         demo: PathBuf,
         /// SteamID64 or exact in-demo player name.
@@ -77,9 +116,42 @@ enum Command {
     },
 }
 
-fn main() -> Result<()> {
+fn main() -> ExitCode {
+    match run() {
+        Ok(code) => ExitCode::from(code),
+        Err(error) => {
+            eprintln!("{error:#}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<u8> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Import {
+            paths,
+            player,
+            quiet,
+        } => {
+            return application::import_paths(&paths, player.as_deref(), quiet);
+        }
+        Command::Refresh { player, quiet } => {
+            return application::refresh(player.as_deref(), quiet);
+        }
+        Command::Status { pretty } => {
+            let store = storage::Store::open(None)?;
+            print_json(&store.current_summary()?, pretty)?;
+        }
+        Command::SetupAuto => {
+            autofetch::setup_auto(true)?;
+            autofetch::enable_daemon()?;
+            autofetch::remove_legacy_runtime()?;
+            println!("Automatic match fetching is enabled.");
+        }
+        Command::Bootstrap => return autofetch::bootstrap(),
+        Command::AutoRun => return autofetch::run_daemon(),
+        Command::AutoStatus { pretty } => print_json(&autofetch::load_state(), pretty)?,
         Command::Probe { demo, pretty } => {
             print_json(&parser_adapter::probe(&demo)?, pretty)?;
         }
@@ -141,7 +213,7 @@ fn main() -> Result<()> {
             print_json(&report::generate(&demo, &player)?, pretty)?;
         }
     }
-    Ok(())
+    Ok(0)
 }
 
 fn print_json(value: &impl Serialize, pretty: bool) -> Result<()> {
@@ -151,4 +223,30 @@ fn print_json(value: &impl Serialize, pretty: bool) -> Result<()> {
         println!("{}", serde_json::to_string(value)?);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    const PANEL: &str = include_str!("../../../Panel.qml");
+
+    #[test]
+    fn every_local_text_control_forces_plain_text() {
+        assert_eq!(
+            PANEL.matches("Text {").count(),
+            PANEL.matches("textFormat: Text.PlainText").count()
+        );
+    }
+
+    #[test]
+    fn demo_strings_passed_to_shared_modules_are_neutralized() {
+        assert!(
+            PANEL.contains(
+                "tooltipText: root.selectedMatch ? root.safeText(root.selectedMatch.map)"
+            )
+        );
+        assert!(
+            PANEL.contains("title: root.selectedMatch ? root.safeText(root.selectedMatch.map)")
+        );
+        assert!(PANEL.contains("root.safeText(root.selectedMatch.player.name)"));
+    }
 }

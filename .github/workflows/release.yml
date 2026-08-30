@@ -1,0 +1,76 @@
+name: Release omarCS
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install the pinned Rust toolchain and static Linux target
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.96.0 --profile minimal --target x86_64-unknown-linux-musl
+          rustup default 1.96.0
+          sudo apt-get update
+          sudo apt-get install --yes musl-tools
+
+      - name: Validate the release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(tr -d '[:space:]' < omarcs-release)" = "${GITHUB_REF_NAME}"
+          test "v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "omarcs") | .version')" = "${GITHUB_REF_NAME}"
+
+      - name: Test the workspace
+        run: cargo test --workspace --locked
+
+      - name: Build and package the static executable
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="x86_64-unknown-linux-musl"
+          asset="omarcs-${target}.tar.gz"
+          cargo build --locked --release --target "$target" -p omarcs
+          OMARCS_TEST_BINARY="target/${target}/release/omarcs" tests/launcher.sh
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          install -Dm755 "target/${target}/release/omarcs" dist/omarcs
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime="@${SOURCE_DATE_EPOCH}" -czf "dist/${asset}" -C dist omarcs
+          (cd dist && sha256sum "$asset" > "${asset}.sha256")
+          echo "asset=dist/${asset}" >> "$GITHUB_OUTPUT"
+          echo "checksum=dist/${asset}.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Attest the executable archive
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: ${{ steps.package.outputs.asset }}
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+              --generate-notes --title "omarCS ${GITHUB_REF_NAME}"
+          fi
+          gh release upload "$GITHUB_REF_NAME" \
+            "${{ steps.package.outputs.asset }}" \
+            "${{ steps.package.outputs.checksum }}" --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false
