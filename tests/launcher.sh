@@ -56,7 +56,7 @@ export OMARCS_TEST_CURL_LOG="$test_root/curl.log"
 "$repo_dir/omarcs-plugin" --help >/dev/null
 test -x "$XDG_DATA_HOME/omarcs/omarcs"
 test "$(tr -d '\n' < "$XDG_DATA_HOME/omarcs/omarcs.version")" = \
-  "release:v0.1.1:x86_64-unknown-linux-musl"
+  "release:v0.1.2:x86_64-unknown-linux-musl"
 test "$(wc -l < "$OMARCS_TEST_CURL_LOG")" -eq 2
 test -z "$(find "$XDG_CACHE_HOME/omarcs" -mindepth 1 -print -quit)"
 
@@ -88,7 +88,7 @@ if ! "$repo_dir/omarcs-plugin" --help >/dev/null 2>"$test_root/fallback.log"; th
 fi
 test -x "$XDG_DATA_HOME/omarcs/omarcs"
 test "$(tr -d '\n' < "$XDG_DATA_HOME/omarcs/omarcs.version")" = \
-  "source:v0.1.1:$(uname -m)"
+  "source:v0.1.2:$(uname -m)"
 test "$(wc -l < "$OMARCS_TEST_CARGO_LOG")" -eq 1
 test -z "$(find "$XDG_CACHE_HOME/omarcs" -mindepth 1 -print -quit)"
 

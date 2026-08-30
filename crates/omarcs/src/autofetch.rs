@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{anyhow, bail, Context, Result};
 use bzip2::read::BzDecoder;
 use chrono::{Local, SecondsFormat, Utc};
 use fs2::FileExt;
@@ -87,7 +87,7 @@ fn save_state(state: &AutoState) -> Result<()> {
 
 pub fn extract_replay_urls(payload: &[u8]) -> Vec<String> {
     let expression =
-        Regex::new(r"https://replay\d+\.valve\.net/730/[A-Za-z0-9_-]+\.dem\.bz2").unwrap();
+        Regex::new(r"https?://replay\d+\.valve\.net/730/[A-Za-z0-9_-]+\.dem\.bz2").unwrap();
     let text = String::from_utf8_lossy(payload);
     let mut found = Vec::new();
     for item in expression
@@ -102,7 +102,7 @@ pub fn extract_replay_urls(payload: &[u8]) -> Vec<String> {
 }
 
 pub fn trusted_replay_url(url: &str) -> bool {
-    Regex::new(r"^https://replay\d+\.valve\.net/730/[A-Za-z0-9_-]+\.dem\.bz2$")
+    Regex::new(r"^https?://replay\d+\.valve\.net/730/[A-Za-z0-9_-]+\.dem\.bz2$")
         .unwrap()
         .is_match(url)
 }
@@ -308,7 +308,7 @@ impl std::error::Error for InterruptedForGame {}
 
 fn download_demo(url: &str, game_state: &GameState) -> Result<PathBuf> {
     if !trusted_replay_url(url) {
-        bail!("Expected a trusted Valve HTTPS replay URL");
+        bail!("Expected a trusted Valve replay URL");
     }
     let root = demos_root();
     fs::create_dir_all(&root)?;
@@ -333,7 +333,7 @@ fn download_demo(url: &str, game_state: &GameState) -> Result<PathBuf> {
     let mut response = request.call().context("downloading Valve replay")?;
     let final_url = response.get_uri().to_string();
     if !trusted_replay_url(&final_url) {
-        bail!("Replay download redirected outside trusted Valve HTTPS hosts");
+        bail!("Replay download redirected outside trusted Valve replay hosts");
     }
     let append = offset > 0 && response.status().as_u16() == 206;
     if !append {
@@ -838,8 +838,8 @@ pub fn bootstrap() -> Result<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bzip2::Compression;
     use bzip2::write::BzEncoder;
+    use bzip2::Compression;
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -859,9 +859,9 @@ mod tests {
 
     #[test]
     fn extracts_unique_urls_in_order() {
-        let first = b"https://replay423.valve.net/730/one.dem.bz2";
+        let first = b"http://replay423.valve.net/730/one.dem.bz2";
         let second = b"https://replay171.valve.net/730/two.dem.bz2";
-        let mut payload = b"http://replay999.valve.net/730/unsafe.dem.bz2\0".to_vec();
+        let mut payload = b"http://replay999.valve.net.evil.test/730/unsafe.dem.bz2\0".to_vec();
         payload.extend(first);
         payload.push(0);
         payload.extend(second);
@@ -878,10 +878,10 @@ mod tests {
     #[test]
     fn only_exact_valve_replay_urls_are_trusted() {
         assert!(trusted_replay_url(
-            "https://replay423.valve.net/730/match.dem.bz2"
-        ));
-        assert!(!trusted_replay_url(
             "http://replay423.valve.net/730/match.dem.bz2"
+        ));
+        assert!(trusted_replay_url(
+            "https://replay423.valve.net/730/match.dem.bz2"
         ));
         assert!(!trusted_replay_url(
             "https://replay423.valve.net.evil.test/730/match.dem.bz2"

@@ -158,8 +158,10 @@ scheduling, a nice value of 10, and low systemd CPU/I/O weights. Partial
 downloads resume later. Valve currently exposes the latest eight
 Premier/Competitive replays; FACEIT is not yet automatic.
 
-Automatic downloads accept only exact `https://replay<number>.valve.net/730/`
-demo URLs and reject redirects outside that origin pattern. Compressed and
+Automatic downloads accept only exact `http://replay<number>.valve.net/730/`
+or `https://replay<number>.valve.net/730/` Demo URLs and reject redirects
+outside those origin patterns. Valve currently publishes replay URLs over
+HTTP, so Demo contents are treated as untrusted input. Compressed and
 expanded sizes are bounded; bzip2 verifies its stream checksum during
 decompression, and omarCS verifies the CS2 demo header before invoking the
 parser. The complete delta from the pinned parser source is documented in
