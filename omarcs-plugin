@@ -13,12 +13,22 @@ version_file="$install_dir/omarcs.version"
 release_version="$(tr -d '[:space:]' < "$plugin_dir/omarcs-release")"
 release_target="x86_64-unknown-linux-musl"
 release_asset="omarcs-${release_target}.tar.gz"
-release_marker="release:${release_version}:${release_target}"
+release_checksum_file="$plugin_dir/omarcs-release.sha256"
+expected_release_hash=""
+if [[ -r "$release_checksum_file" ]]; then
+  expected_release_hash="$(awk -v asset="$release_asset" \
+    '$2 == asset && $1 ~ /^[0-9a-f]{64}$/ { print $1 }' "$release_checksum_file")"
+fi
+release_marker="release:${release_version}:${release_target}:${expected_release_hash}"
 source_marker="source:${release_version}:$(uname -m)"
 release_base_url="${OMARCS_RELEASE_BASE_URL:-https://github.com/Kieren-Foenander/omarCS/releases/download}"
 
 if [[ ! "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   echo "omarCS has an invalid pinned release version: $release_version" >&2
+  exit 2
+fi
+if [[ ! "$expected_release_hash" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "omarCS has no valid commit-bound checksum for $release_asset" >&2
   exit 2
 fi
 
@@ -59,22 +69,13 @@ install_release() (
   trap 'rm -rf -- "$local_tmp"' EXIT
 
   archive="$local_tmp/$release_asset"
-  checksum="$archive.sha256"
   asset_url="$release_base_url/$release_version/$release_asset"
 
   curl --fail --silent --show-error --location \
     --proto '=https' --tlsv1.2 --retry 2 --retry-all-errors \
     --connect-timeout 10 --max-time 180 \
     --output "$archive" "$asset_url"
-  curl --fail --silent --show-error --location \
-    --proto '=https' --tlsv1.2 --retry 2 --retry-all-errors \
-    --connect-timeout 10 --max-time 60 \
-    --output "$checksum" "$asset_url.sha256"
-
-  expected_hash="$(awk -v asset="$release_asset" \
-    '$2 == asset && $1 ~ /^[0-9a-f]{64}$/ { print $1 }' "$checksum")"
-  [[ "$expected_hash" =~ ^[0-9a-f]{64}$ ]]
-  [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$expected_hash" ]]
+  [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$expected_release_hash" ]]
   [[ "$(tar -tzf "$archive")" == "omarcs" ]]
 
   tar -xzf "$archive" -C "$local_tmp"

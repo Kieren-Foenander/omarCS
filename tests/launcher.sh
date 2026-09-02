@@ -12,10 +12,13 @@ install -m 0755 -- "$test_binary" "$test_root/assets/omarcs"
 
 asset="omarcs-x86_64-unknown-linux-musl.tar.gz"
 tar -czf "$test_root/assets/$asset" -C "$test_root/assets" omarcs
-(
-  cd "$test_root/assets"
-  sha256sum "$asset" > "$asset.sha256"
-)
+test_asset_hash="$(sha256sum "$test_root/assets/$asset" | awk '{print $1}')"
+
+mkdir -p "$test_root/plugin"
+install -m 0755 -- "$repo_dir/omarcs-plugin" "$test_root/plugin/omarcs-plugin"
+install -m 0644 -- "$repo_dir/omarcs-release" "$test_root/plugin/omarcs-release"
+printf '%s  %s\n' "$test_asset_hash" "$asset" > "$test_root/plugin/omarcs-release.sha256"
+launcher="$test_root/plugin/omarcs-plugin"
 
 cat > "$test_root/mock-bin/curl" <<'MOCK_CURL'
 #!/usr/bin/env bash
@@ -53,16 +56,30 @@ export OMARCS_RELEASE_BASE_URL="https://release.test.invalid"
 export OMARCS_TEST_ASSET_DIR="$test_root/assets"
 export OMARCS_TEST_CURL_LOG="$test_root/curl.log"
 
-"$repo_dir/omarcs-plugin" --help >/dev/null
+"$launcher" --help >/dev/null
 test -x "$XDG_DATA_HOME/omarcs/omarcs"
 test "$(tr -d '\n' < "$XDG_DATA_HOME/omarcs/omarcs.version")" = \
-  "release:v0.1.2:x86_64-unknown-linux-musl"
-test "$(wc -l < "$OMARCS_TEST_CURL_LOG")" -eq 2
+  "release:v0.1.2:x86_64-unknown-linux-musl:$test_asset_hash"
+test "$(wc -l < "$OMARCS_TEST_CURL_LOG")" -eq 1
 test -z "$(find "$XDG_CACHE_HOME/omarcs" -mindepth 1 -print -quit)"
 
 # A second launch must use the installed version without touching the network.
-"$repo_dir/omarcs-plugin" --help >/dev/null
-test "$(wc -l < "$OMARCS_TEST_CURL_LOG")" -eq 2
+"$launcher" --help >/dev/null
+test "$(wc -l < "$OMARCS_TEST_CURL_LOG")" -eq 1
+
+# The downloaded archive is trusted only when it matches the checksum committed
+# in the plugin snapshot. A changed release asset must not be installed.
+mkdir -p "$test_root/tampered-assets"
+cp -- "$test_root/assets/$asset" "$test_root/tampered-assets/$asset"
+printf 'tampered\n' >> "$test_root/tampered-assets/$asset"
+export XDG_DATA_HOME="$test_root/tampered-data"
+export XDG_CACHE_HOME="$test_root/tampered-cache"
+export OMARCS_TEST_ASSET_DIR="$test_root/tampered-assets"
+if "$launcher" --help >/dev/null 2>"$test_root/tampered.log"; then
+  echo "launcher installed a release asset that did not match the committed checksum" >&2
+  exit 1
+fi
+test ! -e "$XDG_DATA_HOME/omarcs/omarcs"
 
 # A failed release download falls back to Cargo, records the source install,
 # and removes its temporary build directory. The mock keeps this test fast;
@@ -82,7 +99,7 @@ export OMARCS_TEST_ASSET_DIR="$test_root/missing-assets"
 export OMARCS_TEST_BINARY="$test_binary"
 export OMARCS_TEST_CARGO_LOG="$test_root/cargo.log"
 
-if ! "$repo_dir/omarcs-plugin" --help >/dev/null 2>"$test_root/fallback.log"; then
+if ! "$launcher" --help >/dev/null 2>"$test_root/fallback.log"; then
   cat "$test_root/fallback.log" >&2
   exit 1
 fi
@@ -98,6 +115,7 @@ installed_plugin="$test_root/config/omarchy/plugins/omarcs.stats"
 mkdir -p "$installed_plugin/target"
 install -m 0755 -- "$repo_dir/omarcs-plugin" "$installed_plugin/omarcs-plugin"
 install -m 0644 -- "$repo_dir/omarcs-release" "$installed_plugin/omarcs-release"
+install -m 0644 -- "$test_root/plugin/omarcs-release.sha256" "$installed_plugin/omarcs-release.sha256"
 touch "$installed_plugin/target/legacy-build-artifact"
 
 export XDG_CONFIG_HOME="$test_root/config"

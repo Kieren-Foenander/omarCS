@@ -24,8 +24,9 @@ consent to finish setup.
 
 On first open, the widget:
 
-- downloads the versioned static `omarcs` executable and verifies its SHA-256
-  checksum before installing it atomically
+- downloads the versioned static `omarcs` executable and verifies it against
+  the SHA-256 checksum committed in the same plugin snapshot before installing
+  it atomically
 - downloads SHA-256-pinned CS2 helper archives into `~/.local/share/omarcs/`
 - writes the CS2 Game State Integration file and a user-level systemd
   unit, backing up any existing file it replaces
@@ -197,9 +198,12 @@ Downloads API access.
 ## Dependencies
 
 The normal x86-64 installation uses a static Rust executable from the release
-pinned in `omarcs-release`. The launcher uses the standard Omarchy tools
-`curl`, `sha256sum`, `tar`, `install`, and `flock`; there is no Python runtime,
-virtual environment, Rust toolchain, or Cargo build cache to install.
+pinned in `omarcs-release`. Its expected digest is pinned separately in
+`omarcs-release.sha256`, so replacing both mutable release assets cannot change
+the executable accepted by a reviewed plugin commit. The launcher uses the
+standard Omarchy tools `curl`, `sha256sum`, `tar`, `install`, and `flock`; there
+is no Python runtime, virtual environment, Rust toolchain, or Cargo build cache
+to install.
 
 If the release cannot be downloaded, the launcher can use an existing Cargo
 installation to build the checked-out source in a temporary cache directory.
