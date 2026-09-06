@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use bzip2::read::BzDecoder;
 use chrono::{Local, SecondsFormat, Utc};
 use fs2::FileExt;
@@ -157,6 +157,7 @@ fn query_recent_urls() -> Result<Vec<String>> {
 
 #[derive(Debug)]
 struct GameStateData {
+    manual_refresh: bool,
     phase: String,
     updated_at: Instant,
     gameover_at: Option<Instant>,
@@ -171,6 +172,7 @@ impl GameState {
     pub fn new() -> Self {
         let now = Instant::now();
         Self(Arc::new(Mutex::new(GameStateData {
+            manual_refresh: false,
             phase: "unknown".to_owned(),
             updated_at: now,
             gameover_at: None,
@@ -204,6 +206,11 @@ impl GameState {
 
     pub fn heavy_work_allowed(&self) -> bool {
         let mut state = self.0.lock().unwrap();
+        // A button-triggered import is allowed with CS2 still open. Only the
+        // unattended daemon needs to defer work based on game presence.
+        if state.manual_refresh {
+            return true;
+        }
         let now = Instant::now();
         if now.duration_since(state.process_checked_at) >= Duration::from_secs(2) {
             state.process_running = cs2_running().unwrap_or(true);
@@ -420,11 +427,14 @@ fn decompress_demo_with_limit(
     result.map(|()| demo)
 }
 
-fn parse_demo(demo: &Path, game_state: &GameState) -> Result<()> {
+fn parse_demo(demo: &Path, game_state: &GameState, player: Option<&str>) -> Result<()> {
     let executable = std::env::current_exe()?;
-    let mut child = Command::new(executable)
-        .args(["import", &demo.to_string_lossy(), "--quiet"])
-        .spawn()?;
+    let mut command = Command::new(executable);
+    command.args(["import", &demo.to_string_lossy(), "--quiet"]);
+    if let Some(player) = player {
+        command.args(["--player", player]);
+    }
+    let mut child = command.spawn()?;
     wait_for_import(&mut child, game_state)
 }
 
@@ -489,7 +499,7 @@ impl AutoFetcher {
             state.last_poll_at = utc_now();
         })
     }
-    fn process_queue(&mut self) -> Result<()> {
+    fn process_queue(&mut self, player: Option<&str>) -> Result<()> {
         while !self.state.queue.is_empty() && self.game_state.heavy_work_allowed() {
             let url = self.state.queue[0].clone();
             let name = url.rsplit('/').next().unwrap_or("match.dem.bz2").to_owned();
@@ -519,7 +529,7 @@ impl AutoFetcher {
                     .to_string_lossy()
                     .into_owned();
             })?;
-            parse_demo(&demo, &self.game_state)?;
+            parse_demo(&demo, &self.game_state, player)?;
             let _ = fs::remove_file(&demo);
             let _ = fs::remove_file(&compressed);
             self.state.queue.remove(0);
@@ -531,6 +541,35 @@ impl AutoFetcher {
         }
         Ok(())
     }
+}
+
+/// One explicit Steam query. No service, GSI listener, polling, or retry loop.
+pub fn refresh_once(player: Option<&str>, quiet: bool) -> Result<u8> {
+    fs::create_dir_all(runtime_root())?;
+    let lock_file = File::create(runtime_root().join("autofetch.lock"))?;
+    lock_file
+        .try_lock_exclusive()
+        .context("Another Steam fetch is already running")?;
+    let game_state = GameState::new();
+    game_state.0.lock().unwrap().manual_refresh = true;
+    let mut fetcher = AutoFetcher::new(game_state);
+    let result = (|| -> Result<()> {
+        install_helper()?;
+        // The helper exits (or is killed after 25 seconds) before downloads
+        // and analysis begin, releasing its Steam connection immediately.
+        fetcher.discover()?;
+        fetcher.process_queue(player)
+    })();
+    if let Err(error) = &result {
+        fetcher.record(|state| {
+            state.status = "error".to_owned();
+            state.error = format!("{error:#}");
+        })?;
+    }
+    // A failed Steam query must not prevent importing demos already on disk.
+    let local_result = application::refresh(player, quiet);
+    result.context("Steam refresh failed; click Refresh demos to try again")?;
+    local_result
 }
 
 pub fn run_daemon() -> Result<u8> {
@@ -585,7 +624,7 @@ pub fn run_daemon() -> Result<u8> {
         if game_state.heavy_work_allowed() {
             let work = (|| -> Result<()> {
                 if now >= work_retry_at {
-                    fetcher.process_queue()?;
+                    fetcher.process_queue(None)?;
                     if fetcher.state.queue.is_empty() {
                         work_failures = 0;
                     }
@@ -593,7 +632,7 @@ pub fn run_daemon() -> Result<u8> {
                 if now >= next_poll {
                     fetcher.discover()?;
                     if now >= work_retry_at {
-                        fetcher.process_queue()?;
+                        fetcher.process_queue(None)?;
                         if fetcher.state.queue.is_empty() {
                             work_failures = 0;
                         }
@@ -828,8 +867,9 @@ pub fn remove_legacy_runtime() -> Result<()> {
 }
 
 pub fn bootstrap() -> Result<u8> {
-    setup_auto(true)?;
-    enable_daemon()?;
+    // Opening the widget must never create a Steam Game Coordinator session.
+    // Automatic discovery is available only through explicit setup-auto.
+    install_vrf()?;
     remove_legacy_runtime()?;
     let settings = config::load_settings(None)?;
     application::import_paths(&settings.import_paths, None, true)
@@ -838,8 +878,8 @@ pub fn bootstrap() -> Result<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bzip2::write::BzEncoder;
     use bzip2::Compression;
+    use bzip2::write::BzEncoder;
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 

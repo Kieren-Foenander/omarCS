@@ -92,9 +92,10 @@ Panel {
     return isFinite(kills) && isFinite(deaths) ? kills - deaths : null
   }
 
-  function refreshNow() {
-    if (refreshProcess.running) return
+  function refreshNow(localOnly) {
+    if (refreshProcess.running || bootstrapProcess.running) return
     refreshError = ""
+    refreshProcess.command = [root.pluginDir + "/omarcs-plugin", "refresh", "--quiet"].concat(localOnly === true ? [] : ["--steam"])
     refreshProcess.running = true
   }
 
@@ -170,7 +171,7 @@ Panel {
   }
 
   // This is the first-run path after a user enables the plugin. It configures
-  // automatic match pickup and scans any demo files already on disk.
+  // local map helpers and scans any demo files already on disk.
   Process {
     id: bootstrapProcess
     command: [root.pluginDir + "/omarcs-plugin", "bootstrap"]
@@ -180,7 +181,7 @@ Panel {
     }
     onExited: function(exitCode) {
       summaryFile.reload()
-      if (exitCode !== 0 && root.bootstrapError === "") root.bootstrapError = "Automatic setup failed"
+      if (exitCode !== 0 && root.bootstrapError === "") root.bootstrapError = "Local setup failed"
     }
   }
 
@@ -191,7 +192,7 @@ Panel {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.refreshNow()
+    onTriggered: root.refreshNow(true)
   }
 
   onOpenedChanged: if (opened) {

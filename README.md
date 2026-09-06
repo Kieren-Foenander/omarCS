@@ -27,12 +27,9 @@ On first open, the widget:
 - downloads the versioned static `omarcs` executable and verifies it against
   the SHA-256 checksum committed in the same plugin snapshot before installing
   it atomically
-- downloads SHA-256-pinned CS2 helper archives into `~/.local/share/omarcs/`
-- writes the CS2 Game State Integration file and a user-level systemd
-  unit, backing up any existing file it replaces
-- starts `omarcs-autofetch.service` and scans the usual demo folders
-- removes the obsolete Python environment and `omarcs-native` executable after
-  the Rust daemon starts successfully
+- downloads the SHA-256-pinned map geometry helper into `~/.local/share/omarcs/`
+- scans the usual demo folders without connecting to Steam or starting a fetcher
+- removes the obsolete Python environment and `omarcs-native` executable during local setup
 - removes the obsolete Cargo `target/` directory from an installed plugin clone
   after the standalone executable is available
 
@@ -74,7 +71,7 @@ Optional leftovers, only if you want them gone too:
 omarCS does not edit `~/.config/omarchy/shell.json`. Omarchy's own
 `plugin enable` / `plugin remove` commands own bar placement.
 
-When you enable the widget (or run `omarcs setup-auto`), omarCS may
+Only when you explicitly run `omarcs setup-auto`, omarCS may
 replace these files after copying a timestamped backup into
 `~/.local/state/omarcs/backups/`:
 
@@ -89,7 +86,9 @@ yourself if you want to pin a Steam account or change import paths.
 Click the bar pill to open the popup. Use **Older** / **Newer**, click a
 recent-match row, or press Left/Right (`H`/`L`) to browse the five most
 recent games. Press `R`, click **Refresh demos**, or middle-click the bar
-pill to scan again.
+pill to check Steam once, download new Valve demos, and analyse them. The
+Steam helper exits before downloads and analysis begin. Startup and timed
+scans only inspect local files; they never check Steam.
 
 A `.dem` file in `~/Downloads`, `~/.local/share/omarcs/demos`, or the
 local CS2 folder is found by the five-minute scan, or immediately with
@@ -115,7 +114,7 @@ omarcs import ~/Downloads/match.dem --player "Player name"
 - Utility damage and flash impact
 - Deterministic coaching notes
 - Browsable five-match popup and ten-match averages
-- Automatic retrieval and parsing of new Valve Premier/Competitive demos
+- Optional automatic retrieval and parsing of new Valve Premier/Competitive demos
 - Map-aware crosshair correction, first-shot time, time-to-damage,
   spotted accuracy, and proper counter-strafing
 - Interactive AK-47, Galil, M4A4, and M4A1-S spray-control targets with
@@ -141,14 +140,24 @@ presented as reliable coaching.
 
 ## Automatic matches
 
-Enabling the widget starts the user-level fetcher. You can also run:
+Background Steam discovery is opt-in.
+**Refresh demos** performs one Steam check on demand, downloads new Valve
+demos, and analyses them. It can briefly affect your in-game status during
+the check; it does not leave a Steam session or polling loop running.
+If Steam cannot supply the demo yet, click again later. Local demos are
+still scanned if the Steam check fails.
+
+The equivalent terminal command is `omarcs refresh --steam`;
+`omarcs refresh` only scans local files.
+
+To explicitly enable automatic discovery, run:
 
 ```bash
 omarcs setup-auto
 omarcs auto-status --pretty
 ```
 
-CS2's Game State Integration schedules a replay check 30 seconds after
+With automatic discovery enabled, CS2's Game State Integration schedules a replay check 30 seconds after
 the match ends. It checks every 30 seconds for up to ten minutes, then
 returns to a 15-minute idle check. Existing matches are recorded as a
 baseline during setup, so they are not downloaded again.
@@ -210,7 +219,8 @@ installation to build the checked-out source in a temporary cache directory.
 That directory is removed after installation. Set `OMARCS_BUILD_FROM_SOURCE=1`
 to deliberately exercise this path.
 
-First enable also downloads these SHA-256-pinned GitHub release zips into
+Local setup downloads Source2Viewer; the first Steam refresh (or optional
+`setup-auto`) also downloads boiler-writter. These SHA-256-pinned GitHub release zips go into
 `~/.local/share/omarcs/` (not piped to a shell):
 
 | Archive | License | Use |
