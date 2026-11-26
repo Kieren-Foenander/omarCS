@@ -51,7 +51,7 @@ fn bootstrap_scans_locally_without_steam_or_systemd() {
 }
 
 #[test]
-fn steam_refresh_is_explicit_and_failed_imports_remain_queued() {
+fn steam_refresh_is_explicit_and_rejected_demos_do_not_block_the_queue() {
     use std::os::unix::fs::PermissionsExt;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -107,7 +107,9 @@ fn steam_refresh_is_explicit_and_failed_imports_remain_queued() {
     assert!(!root.join(".config/systemd").exists());
 
     // A cached, malformed demo exercises the real import subprocess without
-    // network access. The queued work must survive its failure.
+    // network access. A demo the parser rejects must not block the replays
+    // queued behind it: it leaves the queue, is recorded as skipped, and stays
+    // on disk so the local Demo scan retries it after a parser update.
     let demos = data.join("omarcs/demos");
     fs::create_dir_all(&demos).unwrap();
     fs::write(demos.join("test.dem"), "invalid demo").unwrap();
@@ -116,8 +118,15 @@ fn steam_refresh_is_explicit_and_failed_imports_remain_queued() {
     assert!(!output.status.success());
     let saved: serde_json::Value =
         serde_json::from_slice(&fs::read(state.join("autofetch.json")).unwrap()).unwrap();
-    assert_eq!(saved["queue"], serde_json::json!([url]));
-    assert_eq!(saved["status"], "error");
+    assert_eq!(saved["queue"], serde_json::json!([]));
+    assert_eq!(saved["status"], "idle");
+    assert_eq!(saved["skipped"][0]["name"], "test.dem.bz2");
+    assert!(
+        saved["skipped"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .starts_with("parser exited ")
+    );
     assert_eq!(
         fs::read_to_string(helper.join("calls")).unwrap(),
         "query\nquery\n"

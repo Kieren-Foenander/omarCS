@@ -26,6 +26,7 @@ const GSI_PORT: u16 = 31982;
 const DISCOVERY_INTERVAL: Duration = Duration::from_secs(30);
 const POST_MATCH_WINDOW: Duration = Duration::from_secs(10 * 60);
 const IDLE_DISCOVERY_INTERVAL: Duration = Duration::from_secs(15 * 60);
+const MAX_SKIPPED: usize = 20;
 const HELPER_URL: &str = "https://github.com/akiver/boiler-writter/releases/download/v1.7.0/boiler-writter-linux-1.7.0.zip";
 const HELPER_SHA256: &str = "f3c85acebb55a8c8eefb1334db4fce2cda397dc50eb8ecdb5664cedbc900f7ff";
 const VRF_VERSION: &str = "20.0";
@@ -64,6 +65,29 @@ pub struct AutoState {
     pub game_phase: String,
     pub pid: u32,
     pub gsi: String,
+    /// Replays removed from the queue after a permanent failure, newest first.
+    pub skipped: Vec<SkippedDemo>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SkippedDemo {
+    pub name: String,
+    pub reason: String,
+    pub at: String,
+}
+
+fn record_skip(state: &mut AutoState, name: &str, reason: &str) {
+    state.skipped.retain(|skipped| skipped.name != name);
+    state.skipped.insert(
+        0,
+        SkippedDemo {
+            name: name.to_owned(),
+            reason: reason.to_owned(),
+            at: utc_now(),
+        },
+    );
+    state.skipped.truncate(MAX_SKIPPED);
 }
 
 pub fn load_state() -> AutoState {
@@ -313,6 +337,30 @@ impl std::fmt::Display for InterruptedForGame {
 }
 impl std::error::Error for InterruptedForGame {}
 
+/// The importer rejected a Demo. Retrying it unchanged fails the same way.
+#[derive(Debug)]
+struct ParseFailed(i32);
+impl std::fmt::Display for ParseFailed {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "parser exited {}", self.0)
+    }
+}
+impl std::error::Error for ParseFailed {}
+
+/// Whether a queued replay can never succeed as it is, so it must not hold
+/// back the replays queued after it. A Demo the parser rejects stays on disk,
+/// where the local Demo scan retries it after a parser update. Valve deletes
+/// old replays, which then answer 404 or 410.
+fn skips_queue(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause.is::<ParseFailed>()
+            || matches!(
+                cause.downcast_ref::<ureq::Error>(),
+                Some(ureq::Error::StatusCode(404 | 410))
+            )
+    })
+}
+
 fn download_demo(url: &str, game_state: &GameState) -> Result<PathBuf> {
     if !trusted_replay_url(url) {
         bail!("Expected a trusted Valve replay URL");
@@ -442,7 +490,7 @@ fn wait_for_import(child: &mut Child, game_state: &GameState) -> Result<()> {
     loop {
         if let Some(status) = child.try_wait()? {
             if !status.success() {
-                bail!("parser exited {}", status.code().unwrap_or(1));
+                return Err(ParseFailed(status.code().unwrap_or(1)).into());
             }
             return Ok(());
         }
@@ -503,43 +551,63 @@ impl AutoFetcher {
         while !self.state.queue.is_empty() && self.game_state.heavy_work_allowed() {
             let url = self.state.queue[0].clone();
             let name = url.rsplit('/').next().unwrap_or("match.dem.bz2").to_owned();
-            self.record(|state| {
-                state.status = "downloading".to_owned();
-                state.current = name.clone();
-            })?;
-            let mut compressed = demos_root().join(&name);
-            let demo = compressed.with_extension("");
-            let demo = if demo.exists() {
-                demo
-            } else {
-                if !compressed.exists() {
-                    compressed = download_demo(&url, &self.game_state)?;
+            match self.import_replay(&url, &name, player) {
+                Ok(()) => {
+                    self.state.queue.remove(0);
+                    self.record(|state| {
+                        state.status = "idle".to_owned();
+                        state.current.clear();
+                        state.last_imported_at = utc_now();
+                    })?;
                 }
-                self.record(|state| {
-                    state.status = "decompressing".to_owned();
-                    state.current = name.clone();
-                })?;
-                decompress_demo(&compressed, &self.game_state)?
-            };
-            self.record(|state| {
-                state.status = "parsing".to_owned();
-                state.current = demo
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
-            })?;
-            parse_demo(&demo, &self.game_state, player)?;
-            // Keep the source Demo for explicitly requested highlight rendering.
-            let _ = fs::remove_file(&compressed);
-            self.state.queue.remove(0);
-            self.record(|state| {
-                state.status = "idle".to_owned();
-                state.current.clear();
-                state.last_imported_at = utc_now();
-            })?;
+                Err(error) if skips_queue(&error) => {
+                    let reason = format!("{error:#}");
+                    self.state.queue.remove(0);
+                    self.record(|state| {
+                        record_skip(state, &name, &reason);
+                        state.status = "idle".to_owned();
+                        state.current.clear();
+                    })?;
+                }
+                Err(error) => return Err(error),
+            }
         }
         Ok(())
+    }
+    fn import_replay(&mut self, url: &str, name: &str, player: Option<&str>) -> Result<()> {
+        self.record(|state| {
+            state.status = "downloading".to_owned();
+            state.current = name.to_owned();
+        })?;
+        let mut compressed = demos_root().join(name);
+        let demo = compressed.with_extension("");
+        let demo = if demo.exists() {
+            demo
+        } else {
+            if !compressed.exists() {
+                compressed = download_demo(url, &self.game_state)?;
+            }
+            self.record(|state| {
+                state.status = "decompressing".to_owned();
+                state.current = name.to_owned();
+            })?;
+            decompress_demo(&compressed, &self.game_state)?
+        };
+        self.record(|state| {
+            state.status = "parsing".to_owned();
+            state.current = demo
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+        })?;
+        let parsed = parse_demo(&demo, &self.game_state, player);
+        if parsed.as_ref().map_or_else(skips_queue, |()| true) {
+            // Keep the source Demo for highlight rendering, or for the local
+            // Demo scan to retry after a parser update.
+            let _ = fs::remove_file(&compressed);
+        }
+        parsed
     }
 }
 
@@ -953,6 +1021,40 @@ mod tests {
         assert!(error.to_string().contains("CS2 demo header"));
         assert!(!root.join("match.dem.part").exists());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn only_permanent_failures_release_the_queue() {
+        assert!(skips_queue(&anyhow::Error::from(ParseFailed(1))));
+        let expired =
+            anyhow::Error::from(ureq::Error::StatusCode(404)).context("downloading Valve replay");
+        assert!(skips_queue(&expired));
+        assert!(skips_queue(&anyhow::Error::from(ureq::Error::StatusCode(
+            410
+        ))));
+        assert!(!skips_queue(&anyhow::Error::from(ureq::Error::StatusCode(
+            503
+        ))));
+        assert!(!skips_queue(&anyhow::Error::from(InterruptedForGame)));
+        assert!(!skips_queue(&anyhow!("connection reset")));
+    }
+
+    #[test]
+    fn skipped_demos_are_recorded_newest_first_and_bounded() {
+        let mut state = AutoState::default();
+        for index in 0..(MAX_SKIPPED + 3) {
+            record_skip(
+                &mut state,
+                &format!("match-{index}.dem.bz2"),
+                "parser exited 1",
+            );
+        }
+        assert_eq!(state.skipped.len(), MAX_SKIPPED);
+        assert_eq!(
+            state.skipped[0].name,
+            format!("match-{}.dem.bz2", MAX_SKIPPED + 2)
+        );
+        assert_eq!(state.skipped[0].reason, "parser exited 1");
     }
 
     #[test]
