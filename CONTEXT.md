@@ -13,7 +13,7 @@ The normalized, player-resolved rounds, events, shots, damage, and tick observat
 _Avoid_: Parsed data, dataframe, model
 
 **Match Report**:
-The persisted result for one player in one demo, including statistics, mechanics, sprays, and coaching insights.
+The persisted result for one player in one demo, including statistics, mechanics, sprays, coaching insights, and highlight candidates.
 _Avoid_: Analysis payload, result object
 
 **Engagement**:
@@ -27,3 +27,9 @@ _Avoid_: Burst, recoil sequence
 **Dashboard Summary**:
 The atomic JSON projection watched by the QML dashboard, containing recent Match Reports, trends, status, and aggregated Spray data.
 _Avoid_: summary.json payload, UI state
+
+**Highlight**:
+A scored tick interval containing notable enemy kills by the Match Report's player, with labels and supporting kill ticks. AWP flick labels identify candidates, not a visual quality verdict.
+
+**Rendering Batch**:
+An explicitly started sequence of local Highlight video jobs. Rendering uses offline Steam and CS2 demo playback inside disposable filesystem, process, network and IPC namespaces; original settings are never restored from backups; analysis, refresh timers and startup never create a Rendering Batch.

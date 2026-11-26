@@ -180,6 +180,7 @@ impl Store {
             "player": matches.first().map(|item| item["player"].clone()).unwrap_or(Value::Null),
             "latest": matches.first().cloned().unwrap_or(Value::Null),
             "recent": recent,
+            "highlightMatches": matches.iter().filter(|item| item.get("highlights").is_some()).cloned().collect::<Vec<_>>(),
             "trends": { "matches": count, "wins": wins, "rating": average("rating", 2), "adr": average("adr", 1), "kast": average("kast", 1) },
             "sprayControl": aggregate_sprays(&matches.iter().take(10).cloned().collect::<Vec<_>>()),
         }))

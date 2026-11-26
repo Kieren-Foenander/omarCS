@@ -388,6 +388,7 @@ mod tests {
         victim_side: Side,
     ) -> KillFact {
         KillFact {
+            weapon: "ak47".into(),
             tick,
             attacker: Some(attacker),
             victim: Some(victim),

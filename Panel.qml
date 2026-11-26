@@ -17,6 +17,31 @@ Panel {
   property string bootstrapError: ""
   property int selectedIndex: 0
   property string page: "stats"
+  property var video: ({state: "idle", jobs: [], clips: {}, toolsReady: false})
+  property string videoError: ""
+  readonly property var highlights: selectedMatch && selectedMatch.highlights ? selectedMatch.highlights : []
+  readonly property bool videoBusy: ["queued", "rendering", "cancelling"].indexOf(video.state) >= 0
+
+  function videoAction(action, highlightId) {
+    if (videoActionProcess.running) return
+    videoError = ""
+    var args = [root.pluginDir + "/omarcs-plugin", "highlights-" + action]
+    if (action === "render" || action === "open") args.push(selectedMatch.id)
+    if (highlightId) args.push(highlightId)
+    videoActionProcess.command = args
+    videoActionProcess.running = true
+  }
+
+  function clipReady(highlight) {
+    return !!(selectedMatch && video.clips && video.clips[selectedMatch.id + ":" + highlight.id])
+  }
+
+  function clipState(highlight) {
+    var key = selectedMatch.id + ":" + highlight.id
+    var jobs = video.jobs || []
+    for (var i = 0; i < jobs.length; i++) if (jobs[i].key === key) return jobs[i].state === "complete" && !clipReady(highlight) ? "" : jobs[i].state
+    return clipReady(highlight) ? "complete" : ""
+  }
   property int sprayWeaponIndex: 0
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -25,8 +50,9 @@ Panel {
   readonly property color lossColor: "#f87171"
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property var recent: report && report.recent ? report.recent : []
-  readonly property int matchCount: Math.min(5, recent.length)
+  readonly property var recent: page === "highlights" && report && report.highlightMatches
+    ? report.highlightMatches : (report && report.recent ? report.recent : [])
+  readonly property int matchCount: recent.length
   readonly property var selectedMatch: matchCount > 0
     ? recent[Math.max(0, Math.min(selectedIndex, matchCount - 1))]
     : (report && report.latest ? report.latest : null)
@@ -47,9 +73,7 @@ Panel {
   readonly property bool hasSprayData: sprayWeapons.some(function(weapon) { return Number(weapon.sprays || 0) > 0 })
   readonly property string status: report ? String(report.status || "empty") : "empty"
   readonly property bool busy: status === "analyzing" || refreshProcess.running || bootstrapProcess.running
-  readonly property string pluginDir: manifest && manifest.__sourceDir
-    ? String(manifest.__sourceDir)
-    : Quickshell.env("HOME") + "/.config/omarchy/plugins/omarcs.stats"
+  readonly property string pluginDir: decodeURIComponent(String(Qt.resolvedUrl(".")).replace(/^file:\/\//, "").replace(/\/$/, ""))
 
   visible: true
   implicitWidth: button.implicitWidth
@@ -92,9 +116,10 @@ Panel {
     return isFinite(kills) && isFinite(deaths) ? kills - deaths : null
   }
 
-  function refreshNow() {
-    if (refreshProcess.running) return
+  function refreshNow(localOnly) {
+    if (refreshProcess.running || bootstrapProcess.running || videoBusy) return
     refreshError = ""
+    refreshProcess.command = [root.pluginDir + "/omarcs-plugin", "refresh", "--quiet"].concat(localOnly === true ? [] : ["--steam"])
     refreshProcess.running = true
   }
 
@@ -134,6 +159,8 @@ Panel {
     return String(raw).replace(/&/g, "＆").replace(/</g, "‹").replace(/>/g, "›")
   }
 
+  onPageChanged: selectedIndex = 0
+
   onRecentChanged: if (selectedIndex >= matchCount) selectedIndex = Math.max(0, matchCount - 1)
 
   FileView {
@@ -170,7 +197,7 @@ Panel {
   }
 
   // This is the first-run path after a user enables the plugin. It configures
-  // automatic match pickup and scans any demo files already on disk.
+  // local map helpers and scans any demo files already on disk.
   Process {
     id: bootstrapProcess
     command: [root.pluginDir + "/omarcs-plugin", "bootstrap"]
@@ -180,8 +207,38 @@ Panel {
     }
     onExited: function(exitCode) {
       summaryFile.reload()
-      if (exitCode !== 0 && root.bootstrapError === "") root.bootstrapError = "Automatic setup failed"
+      if (exitCode !== 0 && root.bootstrapError === "") root.bootstrapError = "Local setup failed"
     }
+  }
+
+  Process {
+    id: videoStatusProcess
+    command: [root.pluginDir + "/omarcs-plugin", "highlights-status"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try { root.video = JSON.parse(text) } catch (error) { }
+      }
+    }
+  }
+
+  Process {
+    id: videoActionProcess
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.videoError = String(text || "").trim()
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.videoError === "") root.videoError = "Video action failed"
+      videoStatusProcess.running = true
+    }
+  }
+
+  Timer {
+    interval: 2000
+    running: (root.opened && root.page === "highlights") || root.videoBusy
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!videoStatusProcess.running) videoStatusProcess.running = true
   }
 
   Component.onCompleted: bootstrapProcess.running = true
@@ -191,7 +248,7 @@ Panel {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.refreshNow()
+    onTriggered: root.refreshNow(true)
   }
 
   onOpenedChanged: if (opened) {
@@ -209,6 +266,7 @@ Panel {
     function refresh(): string { root.refreshNow(); return "ok" }
     function older(): string { root.selectOlder(); return "ok" }
     function newer(): string { root.selectNewer(); return "ok" }
+    function highlights(): string { root.page = "highlights"; root.open(); return "ok" }
     function spray(): string { root.page = "spray"; root.open(); return "ok" }
     function stats(): string { root.page = "stats"; root.open(); return "ok" }
   }
@@ -308,13 +366,13 @@ Panel {
         }
 
         Row {
-          visible: !!root.selectedMatch && root.hasSprayData
+          visible: !!root.selectedMatch
           width: parent.width
           spacing: Style.space(6)
 
           Button {
-            width: (parent.width - Style.space(6)) / 2
-            text: "MATCH STATS"
+            width: (parent.width - Style.space(12)) / 3
+            text: "STATS"
             bordered: true
             foreground: root.page === "stats" ? root.winColor : root.dim
             fontFamily: root.fontFamily
@@ -324,8 +382,8 @@ Panel {
           }
 
           Button {
-            width: (parent.width - Style.space(6)) / 2
-            text: "SPRAY CONTROL"
+            width: (parent.width - Style.space(12)) / 3
+            text: "SPRAYS"
             bordered: true
             foreground: root.page === "spray" ? root.winColor : root.dim
             fontFamily: root.fontFamily
@@ -333,10 +391,20 @@ Panel {
             verticalPadding: Style.space(5)
             onClicked: root.page = "spray"
           }
+          Button {
+            width: (parent.width - Style.space(12)) / 3
+            text: "HIGHLIGHTS"
+            bordered: true
+            foreground: root.page === "highlights" ? root.winColor : root.dim
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            verticalPadding: Style.space(5)
+            onClicked: root.page = "highlights"
+          }
         }
 
         Row {
-          visible: root.matchCount > 1 && root.page === "stats"
+          visible: root.matchCount > 1 && root.page !== "spray"
           width: parent.width
           spacing: Style.space(8)
 
@@ -375,6 +443,135 @@ Panel {
             onClicked: root.selectNewer()
           }
         }
+
+
+        Column {
+          visible: !!root.selectedMatch && root.page === "highlights"
+          width: parent.width
+          spacing: Style.space(10)
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: root.highlights.length + " HIGHLIGHTS  ·  " + (root.selectedMatch ? root.selectedMatch.map : "")
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: "Aces, multi-kills and AWP flick candidates from your POV. Clips render only when you start a batch."
+            wrapMode: Text.WordWrap
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          Button {
+            visible: !root.video.toolsReady
+            width: parent.width
+            text: videoActionProcess.running ? "SETTING UP…" : "SET UP VIDEO TOOLS"
+            enabled: !videoActionProcess.running && !root.videoBusy
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.videoAction("setup")
+          }
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            Button {
+              width: (parent.width - Style.space(8)) / 2
+              text: root.videoBusy ? "CANCEL BATCH" : "RENDER TOP " + Math.min(5, root.highlights.length)
+              enabled: !videoActionProcess.running && (root.videoBusy || (root.video.toolsReady && root.highlights.length > 0 && !root.busy))
+              bordered: true
+              foreground: root.videoBusy ? root.lossColor : root.winColor
+              fontFamily: root.fontFamily
+              fontSize: Style.font.caption
+              onClicked: root.videoAction(root.videoBusy ? "cancel" : "render")
+            }
+            Button {
+              width: (parent.width - Style.space(8)) / 2
+              text: "CLIPS FOLDER"
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.caption
+              onClicked: root.videoAction("folder")
+            }
+          }
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            visible: text !== ""
+            text: root.videoError || root.video.message || ""
+            wrapMode: Text.WordWrap
+            color: root.videoError || root.video.state === "failed" ? root.lossColor : root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          Text {
+            textFormat: Text.PlainText
+            visible: root.highlights.length === 0
+            width: parent.width
+            text: root.selectedMatch && root.selectedMatch.highlights === undefined
+              ? "Refresh demos to add highlights to older reports. The original demo must still be available."
+              : "No qualifying highlights in this match. Try another match."
+            wrapMode: Text.WordWrap
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          Repeater {
+            model: root.highlights
+            delegate: Rectangle {
+              required property var modelData
+              width: parent.width
+              height: clipContent.implicitHeight + Style.space(20)
+              color: "transparent"
+              border.color: root.dim
+              radius: Style.space(5)
+              Column {
+                id: clipContent
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(10) }
+                spacing: Style.space(6)
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: modelData.labels.join(" · ")
+                  wrapMode: Text.WordWrap
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: "ROUND " + modelData.round + "  ·  " + modelData.kills + " KILLS  ·  "
+                    + Math.round((modelData.endTick - modelData.startTick) / modelData.tickRate) + "s"
+                    + (root.clipState(modelData) ? "  ·  " + root.clipState(modelData).toUpperCase() : "")
+                  wrapMode: Text.WordWrap
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Button {
+                  width: parent.width
+                  text: root.clipReady(modelData) ? "PLAY CLIP" : "RENDER CLIP"
+                  enabled: root.clipReady(modelData) || (!root.videoBusy && !videoActionProcess.running && root.video.toolsReady && !root.busy)
+                  bordered: true
+                  foreground: root.winColor
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: root.videoAction(root.clipReady(modelData) ? "open" : "render", modelData.id)
+                }
+              }
+            }
+          }
+        }
+
 
         Text {
           textFormat: Text.PlainText

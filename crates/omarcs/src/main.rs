@@ -3,6 +3,7 @@ mod autofetch;
 mod coaching;
 mod config;
 mod geometry;
+mod highlights;
 mod match_facts;
 mod mechanics;
 mod metrics;
@@ -40,6 +41,9 @@ enum Command {
     },
     /// Scan configured Demo directories.
     Refresh {
+        /// Check Steam once and download new Valve demos before scanning locally.
+        #[arg(long)]
+        steam: bool,
         /// SteamID64 or exact in-demo player name.
         #[arg(long)]
         player: Option<String>,
@@ -136,7 +140,14 @@ fn run() -> Result<u8> {
         } => {
             return application::import_paths(&paths, player.as_deref(), quiet);
         }
-        Command::Refresh { player, quiet } => {
+        Command::Refresh {
+            player,
+            quiet,
+            steam,
+        } => {
+            if steam {
+                return autofetch::refresh_once(player.as_deref(), quiet);
+            }
             return application::refresh(player.as_deref(), quiet);
         }
         Command::Status { pretty } => {

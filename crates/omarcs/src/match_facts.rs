@@ -80,6 +80,7 @@ pub struct RoundFact {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KillFact {
+    pub weapon: String,
     pub tick: i32,
     pub attacker: Option<PlayerId>,
     pub victim: Option<PlayerId>,
@@ -190,6 +191,9 @@ impl MatchFacts {
                     round_markers.push(round_marker(event, RoundMarkerKind::OfficialEnd));
                 }
                 "player_death" => kills.push(KillFact {
+                    weapon: field(event, "weapon")
+                        .and_then(as_string)
+                        .unwrap_or_default(),
                     tick: event.tick,
                     attacker: player_id(event, "attacker_steamid"),
                     victim: player_id(event, "user_steamid"),
