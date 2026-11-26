@@ -18,6 +18,12 @@ compressed patch.
 - The generated protobuf bindings are updated and checked in. Related parser
   tables, fixtures, and formatting changes needed by those bindings are in the
   patch.
+- Two later upstream fixes are backported for demos recorded after the CS2
+  2026-11-11 update (build 14197): the `fixed8` field encoder
+  ([`4ba136a`](https://github.com/LaihoE/demoparser/commit/4ba136aa27aa7cf40f0d34b3b36512aa70cfb442))
+  and 64-bit `ResourceId_t` decoding
+  ([`4f4b07d`](https://github.com/LaihoE/demoparser/commit/4f4b07d23e640129603073d725327bd8687f33e9)).
+  Without them these demos fail with `EntityNotFound`.
 - A compact, column-oriented Match Facts tick accumulator is populated during
   the parser's full-packet second pass. This avoids constructing the generic
   dataframe for omarCS while retaining the upstream parsing design.
@@ -37,7 +43,7 @@ SHA-256 digests:
 
 ```text
 a3185b123408deb44304b2c7d2927e4b38ba6aac70b49727d7a75ec6dac769ef  demoparser-upstream.tar.gz
-a9ac76e699fb22880025ade83c051d99c4eb4c1d6aaedd62c66279635322c332  OMARCS.patch.gz
+55536a411f5eb55aa55f939de706bc400c8b220a27af56e6f7b38821106cf95f  OMARCS.patch.gz
 ```
 
 A reviewer can download the source archive for the pinned commit, verify the
