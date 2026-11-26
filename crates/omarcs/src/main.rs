@@ -3,6 +3,7 @@ mod autofetch;
 mod coaching;
 mod config;
 mod geometry;
+mod highlights;
 mod match_facts;
 mod mechanics;
 mod metrics;

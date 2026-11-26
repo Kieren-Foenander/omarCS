@@ -1,5 +1,5 @@
 {
-  "analysisVersion": 4,
+  "analysisVersion": 7,
   "id": "003913afc3a746a4",
   "checksum": "003913afc3a746a4c5c85e60b15922723a1b95286794af3d3adc946ddd07738a",
   "map": "de_inferno",
@@ -272,5 +272,77 @@
     "Only 63% of rifle shots were fully settled; finish the counter-strafe before firing.",
     "You flashed teammates 2 times; tighten flash timing and calls.",
     "Few deaths were traded; check spacing and whether teammates could follow your fights."
-  ]
+  ],
+  "highlights": [
+    {
+      "endTick": 42548,
+      "id": "7-39721-42548",
+      "killTicks": [
+        39913,
+        41858,
+        42292
+      ],
+      "kills": 3,
+      "labels": [
+        "3K"
+      ],
+      "round": 7,
+      "score": 60,
+      "startTick": 39721,
+      "tickRate": 64
+    },
+    {
+      "endTick": 92158,
+      "id": "15-91659-92158",
+      "killTicks": [
+        91851,
+        91889,
+        91902
+      ],
+      "kills": 3,
+      "labels": [
+        "3K",
+        "Quick double kill"
+      ],
+      "round": 15,
+      "score": 60,
+      "startTick": 91659,
+      "tickRate": 64
+    },
+    {
+      "endTick": 96544,
+      "id": "16-95962-96544",
+      "killTicks": [
+        96154,
+        96262,
+        96288
+      ],
+      "kills": 3,
+      "labels": [
+        "3K",
+        "Quick double kill"
+      ],
+      "round": 16,
+      "score": 60,
+      "startTick": 95962,
+      "tickRate": 64
+    },
+    {
+      "endTick": 82979,
+      "id": "13-82319-82979",
+      "killTicks": [
+        82511,
+        82723
+      ],
+      "kills": 2,
+      "labels": [
+        "Quick double kill"
+      ],
+      "round": 13,
+      "score": 40,
+      "startTick": 82319,
+      "tickRate": 64
+    }
+  ],
+  "highlightRenderNameUnique": true
 }

@@ -5,6 +5,14 @@
 set -euo pipefail
 
 plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+case "${1:-}" in
+  highlights-status|highlights-render|highlights-cancel|highlights-open|highlights-folder|highlights-setup)
+    video_command="${1#highlights-}"
+    shift
+    exec python3 "$plugin_dir/video/highlights.py" "$video_command" "$@"
+    ;;
+esac
+
 data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
 cache_home="${XDG_CACHE_HOME:-${HOME}/.cache}"
 install_dir="$data_home/omarcs"

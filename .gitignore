@@ -1,3 +1,6 @@
 *.db
 summary.json
 target/
+
+__pycache__/
+*.pyc

@@ -530,7 +530,7 @@ impl AutoFetcher {
                     .into_owned();
             })?;
             parse_demo(&demo, &self.game_state, player)?;
-            let _ = fs::remove_file(&demo);
+            // Keep the source Demo for explicitly requested highlight rendering.
             let _ = fs::remove_file(&compressed);
             self.state.queue.remove(0);
             self.record(|state| {

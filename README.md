@@ -242,10 +242,82 @@ Vendored in this repository:
 
 omarCS is MIT licensed. See [LICENSE](LICENSE). The same license covers
 the vendored demoparser sources (`vendor/demoparser/LICENSE`) and the
-optional helper archives listed above.
+optional MIT helper archives listed above. Weston retains its bundled upstream
+copyright and licence files; the CSDM licence is saved beside its library.
 
 This plugin runs unsandboxed inside `omarchy-shell` with your user
 permissions. Marketplace listing approval is not a security review.
+
+## Highlights
+
+Open **HIGHLIGHTS** in the plugin. Analysed demos produce aces, 3K/4K rounds,
+quick double kills (within five seconds), AWP double kills (within fifteen seconds),
+and AWP flick candidates. Overlapping
+moments merge into one clip, with three seconds of lead-in and four seconds after
+the action, bounded by the round and two seconds after the player's death.
+The demo playback timeline is hidden in rendered clips. Flick candidates require
+an AWP kill, a recent shot and at least eight degrees of view adjustment within
+roughly 190 ms; they still need visual review.
+
+Choose **RENDER CLIP**, or **RENDER TOP 5** for the highest-scoring candidates in
+the selected match. **CANCEL BATCH** stops the private recording session and
+discards its disposable settings. **PLAY CLIP** opens a finished video; **CLIPS FOLDER** opens the saved
+files for copying, sharing or deleting. The Highlights tab browses reports with
+highlight analysis, including matches older than the five shown in Stats.
+
+Rendering starts only from an explicit action. Close your normal CS2 session.
+Steam must have a cached login with offline mode available; you do not need to
+sign out of your desktop Steam client. Each recording uses a separate offline
+Steam process and CS2 inside a bubblewrap sandbox with no network access.
+Your real settings and Steam session are not used for saving recording settings.
+CS2 runs on a private headless display and hardware-free audio server; the video
+is encoded at 720p/30 FPS without setting your gameplay FPS cap.
+The worker uses a four-core CPU quota, 12 GiB memory ceiling, no swap, a time limit
+and a two-GiB free-disk reserve. It renders one clip at a time and removes raw
+frames afterward. The user confirmed a four-clip batch, including a 42-second clip, stayed
+responsive and quiet on the development desktop. Other hardware still needs testing.
+
+On first use, **SET UP VIDEO TOOLS** installs hash-verified Weston 15.0.1 and
+CS Demo Manager's playback library into `~/.local/share/omarcs/video/`. This does
+not start the game or install system packages. Required host tools: Python 3,
+`curl`, `tar` with zstd, FFmpeg/ffprobe, Xwayland, PipeWire, pipewire-pulse,
+WirePlumber with the `policy` profile, pactl, bubblewrap with overlay support,
+and a systemd user session.
+The current renderer supports x86_64 Linux and 64 Hz CS2 demos, with Steam and
+CS2 installed under your home directory. Offline login uses Steam’s cached credentials.
+
+The CSDM library changes the private copy of the game's search path and requires
+`-insecure`. Settings, game-loading changes and Steam writes stay in a disposable
+filesystem overlay. The original settings are never restored from a backup;
+cleanup deletes only the overlay. Network, process and IPC namespaces, private
+shared memory, and a hidden Steam command pipe isolate the recording session
+from your desktop client. Existing CSDM installations are refused. Player
+selection currently uses a unique, verified demo roster name; ambiguous or
+unsupported names are refused. The library may need updating after CS2 updates.
+See [the implementation and validation notes](docs/highlights.md).
+
+New downloaded demos are retained after analysis. Older reports are reanalysed
+when their original demos are found by a local scan; previously deleted demos
+must be downloaded or imported again. Retained demos are not automatically
+pruned; you can remove ones you no longer want to render.
+
+Clips and job state live under `~/.local/state/omarcs/highlights/`. An interrupted
+batch never resumes automatically. Starting a new batch stops an interrupted
+job's owned service and discards its private overlay before starting the requested
+clips. Legacy recovery records from the previous renderer are refused for manual
+review, so they cannot overwrite current settings. Do not start a normal game
+during rendering.
+
+CLI equivalents:
+
+```bash
+./omarcs-plugin highlights-setup
+./omarcs-plugin highlights-status
+./omarcs-plugin highlights-render MATCH_ID HIGHLIGHT_ID
+./omarcs-plugin highlights-render MATCH_ID  # top five
+./omarcs-plugin highlights-cancel
+./omarcs-plugin highlights-folder
+```
 
 ## Local development
 
@@ -255,6 +327,7 @@ Demo intake, and Match Report calculation:
 ```bash
 omarchy plugin validate .
 cargo test -p omarcs
+python3 -m unittest discover -s video -p 'test_*.py'
 cargo build --release -p omarcs
 target/release/omarcs probe ~/Downloads/match.dem --pretty
 target/release/omarcs facts ~/Downloads/match.dem --pretty

@@ -15,7 +15,7 @@ use crate::metrics::{self, PlayerMetrics};
 use crate::parser_adapter;
 use crate::spray::{self, SprayBurst};
 
-pub const ANALYSIS_VERSION: u32 = 4;
+pub const ANALYSIS_VERSION: u32 = 7;
 
 pub struct ReportMeta {
     pub path: String,
@@ -43,6 +43,8 @@ pub struct MatchReport {
     pub stats: ReportStats,
     pub sprays: Vec<SprayBurst>,
     pub insights: Vec<String>,
+    pub highlights: Vec<crate::highlights::Highlight>,
+    pub highlight_render_name_unique: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -115,6 +117,8 @@ pub fn assemble(
     let name = metrics.name.clone();
 
     MatchReport {
+        highlight_render_name_unique: facts.players.iter().filter(|p| p.name == name).count() == 1,
+        highlights: crate::highlights::detect(facts, player),
         analysis_version: ANALYSIS_VERSION,
         id: meta.checksum.chars().take(16).collect(),
         checksum: meta.checksum,
@@ -236,7 +240,7 @@ mod tests {
         let report = assemble(&quiet_facts(), PLAYER, meta(), None);
         let value = serde_json::to_value(&report).expect("json");
 
-        assert_eq!(value["analysisVersion"], 4);
+        assert_eq!(value["analysisVersion"], 7);
         assert_eq!(value["id"], "abcdef0123456789");
         assert_eq!(value["checksum"], "abcdef0123456789deadbeefcafebabe");
         assert_eq!(value["path"], "/tmp/match.dem");
