@@ -347,18 +347,40 @@ impl std::fmt::Display for ParseFailed {
 }
 impl std::error::Error for ParseFailed {}
 
-/// Whether a queued replay can never succeed as it is, so it must not hold
+/// Whether a queued replay cannot succeed right now, so it must not hold
 /// back the replays queued after it. A Demo the parser rejects stays on disk,
-/// where the local Demo scan retries it after a parser update. Valve deletes
-/// old replays, which then answer 404 or 410.
+/// where the local Demo scan retries it after a parser update.
 fn skips_queue(error: &anyhow::Error) -> bool {
+    replay_unavailable(error) || error.chain().any(|cause| cause.is::<ParseFailed>())
+}
+
+/// Valve answers 404 both before a fresh replay finishes uploading (a few
+/// minutes after the match) and after it deletes an old one. Either way the
+/// replay is retried the next time Steam still lists it.
+fn replay_unavailable(error: &anyhow::Error) -> bool {
     error.chain().any(|cause| {
-        cause.is::<ParseFailed>()
-            || matches!(
-                cause.downcast_ref::<ureq::Error>(),
-                Some(ureq::Error::StatusCode(404 | 410))
-            )
+        matches!(
+            cause.downcast_ref::<ureq::Error>(),
+            Some(ureq::Error::StatusCode(404 | 410))
+        )
     })
+}
+
+fn replay_name(url: &str) -> &str {
+    url.rsplit('/').next().unwrap_or("match.dem.bz2")
+}
+
+/// Whether discovery should queue a URL Steam lists. Replays skipped as
+/// unavailable are queued again, because a 404 right after a match only means
+/// Valve has not finished uploading it yet.
+fn needs_import(state: &AutoState, url: &str) -> bool {
+    let name = replay_name(url);
+    !state.known_urls.iter().any(|known| known == url)
+        || state.skipped.iter().any(|skipped| {
+            skipped.name == name
+                && (skipped.reason.contains("http status: 404")
+                    || skipped.reason.contains("http status: 410"))
+        })
 }
 
 fn download_demo(url: &str, game_state: &GameState) -> Result<PathBuf> {
@@ -526,11 +548,7 @@ impl AutoFetcher {
         })?;
         let urls = query_recent_urls()?;
         let mut queue = self.state.queue.clone();
-        for url in urls
-            .iter()
-            .rev()
-            .filter(|url| !self.state.known_urls.contains(url))
-        {
+        for url in urls.iter().rev().filter(|url| needs_import(&self.state, url)) {
             if !queue.contains(url) {
                 queue.push(url.clone());
             }
@@ -550,11 +568,12 @@ impl AutoFetcher {
     fn process_queue(&mut self, player: Option<&str>) -> Result<()> {
         while !self.state.queue.is_empty() && self.game_state.heavy_work_allowed() {
             let url = self.state.queue[0].clone();
-            let name = url.rsplit('/').next().unwrap_or("match.dem.bz2").to_owned();
+            let name = replay_name(&url).to_owned();
             match self.import_replay(&url, &name, player) {
                 Ok(()) => {
                     self.state.queue.remove(0);
                     self.record(|state| {
+                        state.skipped.retain(|skipped| skipped.name != name);
                         state.status = "idle".to_owned();
                         state.current.clear();
                         state.last_imported_at = utc_now();
@@ -1037,6 +1056,29 @@ mod tests {
         ))));
         assert!(!skips_queue(&anyhow::Error::from(InterruptedForGame)));
         assert!(!skips_queue(&anyhow!("connection reset")));
+    }
+
+    #[test]
+    fn replays_not_yet_uploaded_are_queued_again() {
+        let fresh = "http://replay1.valve.net/730/003_1.dem.bz2";
+        let broken = "http://replay1.valve.net/730/002_1.dem.bz2";
+        let imported = "http://replay1.valve.net/730/001_1.dem.bz2";
+        let mut state = AutoState {
+            known_urls: vec![fresh.into(), broken.into(), imported.into()],
+            ..AutoState::default()
+        };
+        let not_uploaded =
+            anyhow::Error::from(ureq::Error::StatusCode(404)).context("downloading Valve replay");
+        assert!(replay_unavailable(&not_uploaded));
+        record_skip(&mut state, "003_1.dem.bz2", &format!("{not_uploaded:#}"));
+        record_skip(&mut state, "002_1.dem.bz2", "parser exited 1");
+        assert!(needs_import(&state, fresh));
+        assert!(!needs_import(&state, broken));
+        assert!(!needs_import(&state, imported));
+        assert!(needs_import(
+            &state,
+            "http://replay1.valve.net/730/004_1.dem.bz2"
+        ));
     }
 
     #[test]
